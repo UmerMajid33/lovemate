@@ -22,8 +22,14 @@ router.post('/send-otp', async (req, res) => {
       { code, expiresat, attempts: 0 },
       { upsert: true }
     );
-    const emailed = await sendOtpEmail(email, code);
-    // In dev (no SMTP configured) we return the code so testing still works.
+    // Don't let an email/SMTP failure block signup — log it and fall back to
+    // returning the code so verification still works during testing.
+    let emailed = false;
+    try {
+      emailed = await sendOtpEmail(email, code);
+    } catch (mailErr) {
+      console.error('❌ otp email failed (continuing):', mailErr?.message || mailErr);
+    }
     res.status(200).json({ ok: true, emailed, devCode: emailed ? undefined : code });
   } catch (error) {
     console.error('❌ send-otp error:', error?.message || error);
