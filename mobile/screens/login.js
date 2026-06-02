@@ -532,7 +532,7 @@ export default function Login({ onNavigate }) {
               </LinearGradient>
             </SpringButton>
 
-            {Platform.OS === 'web' && (
+            {Platform.OS !== 'ios' && (
               <>
                 <View style={styles.orRow}>
                   <View style={styles.orLine} />

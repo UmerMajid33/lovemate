@@ -21,9 +21,8 @@ export const GOOGLE_CONFIG = {
   // Web OAuth client (used on web + Expo Go). NOTE: only the client ID belongs
   // in the app — never the client secret (GOCSPX-…); it can't be kept private here.
   webClientId:     '324613832083-tjl45unaaqk0hijc7cf5lko79l114lq8.apps.googleusercontent.com',
-  // Add these later if you ship native builds (separate iOS/Android OAuth clients):
-  // iosClientId:     'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',
-  // androidClientId: 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com',
+  androidClientId: '324613832083-76a0qjfm4t51lvc61kqlhef1iasp9aqk.apps.googleusercontent.com',
+  // iosClientId:  'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',  // add when you build for iOS
 };
 
 // True once at least one real client id has been pasted in
@@ -88,12 +87,10 @@ export async function completeGoogleProfile(name, gender, birthday) {
  * Call promptAsync() on button press. onSuccess(user) fires after profile resolves.
  */
 export function useGoogleAuth(onSuccess, onError) {
-  // Google OAuth is web-only here (no native client ids configured). On a
-  // standalone Android/iOS build, Google.useAuthRequest can't build a valid
-  // request and crashes the screen — so skip it entirely off web. Platform.OS
-  // is constant for the app's lifetime, so this branch keeps hook order stable.
-  if (Platform.OS !== 'web') {
-    return { promptAsync: () => onError?.('google sign-in is available on the web version'), ready: false };
+  // iOS has no client id yet → keep it off there to avoid a crash. Web + Android
+  // are configured. Platform.OS is constant at runtime, so hook order stays stable.
+  if (Platform.OS === 'ios') {
+    return { promptAsync: () => onError?.('google sign-in is available on web & android'), ready: false };
   }
 
   const [request, response, promptAsync] = Google.useAuthRequest(GOOGLE_CONFIG);

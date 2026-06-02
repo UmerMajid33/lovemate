@@ -720,7 +720,7 @@ export default function Register({ onNavigate }) {
                 <View style={{ height: 8 }} />
                 <ShimmerButton label="get started →" onPress={handleSubmit} disabled={!isReady} loading={loading} />
 
-                {Platform.OS === 'web' && (
+                {Platform.OS !== 'ios' && (
                   <>
                     <View style={styles.orRow}>
                       <View style={styles.orLine} />
