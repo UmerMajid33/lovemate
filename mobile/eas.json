@@ -5,13 +5,13 @@
       "distribution": "internal",
       "android": { "buildType": "apk" },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-WITH-YOUR-API.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://lovemate-2.onrender.com"
       }
     },
     "production": {
       "android": { "buildType": "app-bundle" },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-WITH-YOUR-API.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://lovemate-2.onrender.com"
       }
     }
   },
