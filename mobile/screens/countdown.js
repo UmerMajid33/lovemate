@@ -7,6 +7,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { API_BASE } from '../utils/api.js';
+import { colors as TC, fonts as TF } from '../theme/theme.js';
+import SpaceBackground from '../theme/SpaceBackground.js';
 
 const { width, height } = Dimensions.get('window');
 // Per-home local cache key — never share one date across different homes.
@@ -68,7 +70,7 @@ function CountNum({ value, style }) {
 }
 
 // ─── Pulsing ring ─────────────────────────────────────────────────────────────
-function PulseRing({ size, delay, color = '#ff4d6d' }) {
+function PulseRing({ size, delay, color = '#E0506E' }) {
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(Animated.sequence([
@@ -112,14 +114,14 @@ function FloatHeart({ x, y, delay }) {
   return (
     <Animated.View style={{ position: 'absolute', left: x, top: y, opacity, transform: [{ translateY: floatY }] }}>
       <Svg width={14} height={14} viewBox="0 0 24 24">
-        <Path d="M12 21s-7-4.5-9-9.5C1.5 7.5 4 4 7.5 4c2 0 3.5 1 4.5 2.5C13 5 14.5 4 16.5 4 20 4 22.5 7.5 21 11.5c-2 5-9 9.5-9 9.5z" fill="#ff4d6d"/>
+        <Path d="M12 21s-7-4.5-9-9.5C1.5 7.5 4 4 7.5 4c2 0 3.5 1 4.5 2.5C13 5 14.5 4 16.5 4 20 4 22.5 7.5 21 11.5c-2 5-9 9.5-9 9.5z" fill="#E0506E"/>
       </Svg>
     </Animated.View>
   );
 }
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
-function StatCard({ value, label, sublabel, color = '#ff4d6d' }) {
+function StatCard({ value, label, sublabel, color = '#E0506E' }) {
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slide  = useRef(new Animated.Value(20)).current;
   useEffect(() => {
@@ -201,10 +203,10 @@ function DateSetup({ homeName, onSave }) {
       <View style={{ width: 120, height: 120, alignItems: 'center', justifyContent: 'center', marginBottom: 28 }}>
         <PulseRing size={120} delay={0} />
         <PulseRing size={120} delay={700} />
-        <LinearGradient colors={['rgba(255,77,109,0.22)', 'rgba(255,77,109,0.07)']}
-          style={{ width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,77,109,0.35)' }}>
+        <LinearGradient colors={['rgba(224,80,110,0.22)', 'rgba(224,80,110,0.07)']}
+          style={{ width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(224,80,110,0.35)' }}>
           <Svg width={40} height={40} viewBox="0 0 24 24">
-            <Path d="M12 21s-7-4.5-9-9.5C1.5 7.5 4 4 7.5 4c2 0 3.5 1 4.5 2.5C13 5 14.5 4 16.5 4 20 4 22.5 7.5 21 11.5c-2 5-9 9.5-9 9.5z" fill="#ff4d6d"/>
+            <Path d="M12 21s-7-4.5-9-9.5C1.5 7.5 4 4 7.5 4c2 0 3.5 1 4.5 2.5C13 5 14.5 4 16.5 4 20 4 22.5 7.5 21 11.5c-2 5-9 9.5-9 9.5z" fill="#E0506E"/>
           </Svg>
         </LinearGradient>
       </View>
@@ -247,7 +249,7 @@ function DateSetup({ homeName, onSave }) {
       {error ? <Text style={c.errorText}>{error}</Text> : null}
 
       <TouchableOpacity onPress={handleSave} style={{ width: '100%', marginTop: 24, borderRadius: 18, overflow: 'hidden' }}>
-        <LinearGradient colors={['#ff6b8a', '#ff4d6d', '#c9184a']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        <LinearGradient colors={['#ff6b8a', '#E0506E', '#9E4456']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
           style={{ height: 56, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', textTransform: 'lowercase', letterSpacing: 0.5 }}>
             start the counter  ♥
@@ -330,11 +332,8 @@ export default function CountdownScreen({ onNavigate, params = {} }) {
 
   return (
     <SafeAreaView style={c.safe}>
-      <StatusBar barStyle="light-content" backgroundColor="#080810" />
-      <LinearGradient colors={['#080810', '#0e0818', '#080810']} style={StyleSheet.absoluteFill} />
-
-      {/* Ambient hearts */}
-      {hearts.map((h, i) => <FloatHeart key={i} {...h} />)}
+      <StatusBar barStyle="light-content" backgroundColor={TC.bg} />
+      <SpaceBackground />
 
       {/* Header */}
       <View style={c.header}>
@@ -363,15 +362,15 @@ export default function CountdownScreen({ onNavigate, params = {} }) {
             {/* Big days counter */}
             <View style={c.heroWrap}>
               <View style={{ alignItems: 'center', justifyContent: 'center', width: 220, height: 220 }}>
-                <PulseRing size={220} delay={0}   color="#ff4d6d" />
-                <PulseRing size={220} delay={600}  color="#ff758f" />
-                <PulseRing size={220} delay={1200} color="#c9184a" />
+                <PulseRing size={220} delay={0}   color={TC.accent} />
+                <PulseRing size={220} delay={600}  color={TC.accentSoft} />
+                <PulseRing size={220} delay={1200} color="#9E4456" />
                 <LinearGradient
-                  colors={['rgba(255,77,109,0.2)', 'rgba(255,77,109,0.06)']}
-                  style={{ width: 160, height: 160, borderRadius: 80, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,77,109,0.3)' }}>
+                  colors={['rgba(224,80,110,0.2)', 'rgba(224,80,110,0.05)']}
+                  style={{ width: 160, height: 160, borderRadius: 80, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: TC.accentLine }}>
                   <Animated.View style={{ transform: [{ scale: heartScale }] }}>
                     <Svg width={64} height={64} viewBox="0 0 24 24">
-                      <Path d="M12 21s-7-4.5-9-9.5C1.5 7.5 4 4 7.5 4c2 0 3.5 1 4.5 2.5C13 5 14.5 4 16.5 4 20 4 22.5 7.5 21 11.5c-2 5-9 9.5-9 9.5z" fill="#ff4d6d"/>
+                      <Path d="M12 21s-7-4.5-9-9.5C1.5 7.5 4 4 7.5 4c2 0 3.5 1 4.5 2.5C13 5 14.5 4 16.5 4 20 4 22.5 7.5 21 11.5c-2 5-9 9.5-9 9.5z" fill={TC.accent}/>
                     </Svg>
                   </Animated.View>
                 </LinearGradient>
@@ -385,9 +384,9 @@ export default function CountdownScreen({ onNavigate, params = {} }) {
             {/* Years / months / days breakdown */}
             <Text style={c.sectionLabel}>your time together</Text>
             <View style={c.statsGrid}>
-              <StatCard value={stats.years}  label="years"  sublabel={stats.years === 1 ? 'one beautiful year' : 'beautiful years'} color="#ff4d6d" />
-              <StatCard value={stats.months} label="months" sublabel="this year"   color="#a78bfa" />
-              <StatCard value={stats.days}   label="days"   sublabel="this month"  color="#34d399" />
+              <StatCard value={stats.years}  label="years"  sublabel={stats.years === 1 ? 'one beautiful year' : 'beautiful years'} color={TC.accent} />
+              <StatCard value={stats.months} label="months" sublabel="this year"   color="#9B8BC4" />
+              <StatCard value={stats.days}   label="days"   sublabel="this month"  color={TC.sage} />
             </View>
 
             {/* Upcoming milestones */}
@@ -398,14 +397,14 @@ export default function CountdownScreen({ onNavigate, params = {} }) {
                 title={`year ${stats.yearCount} anniversary`}
                 days={stats.daysToAnniv}
                 desc={stats.daysToAnniv === 0 ? 'it\'s your anniversary today!' : `in ${stats.daysToAnniv} day${stats.daysToAnniv === 1 ? '' : 's'}`}
-                color="#ff4d6d"
+                color={TC.accent}
               />
               <UpcomingCard
                 icon="calendar"
                 title={`month ${stats.monthCount} together`}
                 days={stats.daysToMonthly}
                 desc={stats.daysToMonthly === 0 ? 'it\'s your mensiversary today!' : `in ${stats.daysToMonthly} day${stats.daysToMonthly === 1 ? '' : 's'}`}
-                color="#a78bfa"
+                color="#9B8BC4"
               />
             </View>
           </>
@@ -418,26 +417,26 @@ export default function CountdownScreen({ onNavigate, params = {} }) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const c = StyleSheet.create({
-  safe:   { flex: 1, backgroundColor: '#080810' },
+  safe:   { flex: 1, backgroundColor: TC.bg },
   scroll: { alignItems: 'center', paddingHorizontal: 24, paddingBottom: 120 },
 
   header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16 },
-  headerTitle: { fontSize: 16, fontWeight: '900', color: '#fff', textTransform: 'lowercase', letterSpacing: -0.3 },
+  headerTitle: { fontFamily: TF.serif, fontSize: 20, color: '#fff', letterSpacing: -0.3 },
   backBtn:     { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
   backBtnText: { fontSize: 17, color: 'rgba(255,255,255,0.6)' },
-  editBtn:     { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(255,77,109,0.35)', backgroundColor: 'rgba(255,77,109,0.08)' },
-  editBtnText: { fontSize: 11, color: '#ff9ec7', fontWeight: '700', textTransform: 'lowercase' },
+  editBtn:     { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(224,80,110,0.35)', backgroundColor: 'rgba(224,80,110,0.08)' },
+  editBtnText: { fontSize: 11, color: '#F08FA0', fontWeight: '700', textTransform: 'lowercase' },
 
   heroWrap:     { alignItems: 'center', paddingVertical: 24, width: '100%' },
-  bigDays:      { fontSize: 80, fontWeight: '900', color: '#fff', letterSpacing: -4, lineHeight: 86, marginTop: 8 },
-  bigDaysLabel: { fontSize: 16, color: 'rgba(255,255,255,0.4)', textTransform: 'lowercase', letterSpacing: 3, fontWeight: '600' },
-  sinceText:    { fontSize: 12, color: 'rgba(255,107,138,0.6)', textTransform: 'lowercase', marginTop: 8, letterSpacing: 0.5 },
+  bigDays:      { fontFamily: TF.serif, fontSize: 78, color: '#fff', letterSpacing: -3, lineHeight: 84, marginTop: 8 },
+  bigDaysLabel: { fontSize: 13, color: 'rgba(242,237,228,0.55)', textTransform: 'uppercase', letterSpacing: 3, fontWeight: '600' },
+  sinceText:    { fontSize: 12, color: 'rgba(224,80,110,0.7)', textTransform: 'lowercase', marginTop: 8, letterSpacing: 0.5 },
 
-  sectionLabel: { alignSelf: 'flex-start', fontSize: 10, color: 'rgba(255,255,255,0.28)', textTransform: 'lowercase', letterSpacing: 2, fontWeight: '700', marginBottom: 12 },
+  sectionLabel: { alignSelf: 'flex-start', fontSize: 10, color: 'rgba(242,237,228,0.4)', textTransform: 'uppercase', letterSpacing: 2.5, fontWeight: '700', marginBottom: 12 },
 
   statsGrid: { flexDirection: 'row', gap: 10, width: '100%' },
   statCard:  { flex: 1, borderRadius: 20, padding: 16, alignItems: 'center', borderWidth: 1.5 },
-  statValue: { fontSize: 28, fontWeight: '900', marginBottom: 4 },
+  statValue: { fontFamily: TF.serif, fontSize: 30, marginBottom: 4 },
   statLabel: { fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'lowercase', letterSpacing: 1 },
   statSublabel: { fontSize: 9, color: 'rgba(255,255,255,0.18)', textTransform: 'lowercase', textAlign: 'center', marginTop: 3 },
 
@@ -454,6 +453,6 @@ const c = StyleSheet.create({
 
   dateRow:   { flexDirection: 'row', gap: 10, width: '100%' },
   dateLabel: { fontSize: 9, color: 'rgba(255,255,255,0.28)', textTransform: 'lowercase', letterSpacing: 1.5, marginBottom: 6 },
-  dateInput: { height: 56, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1.5, borderColor: 'rgba(255,77,109,0.3)', borderRadius: 16, textAlign: 'center', color: '#fff', fontSize: 20, fontWeight: '800', width: '100%', paddingVertical: 0, outlineStyle: 'none', outlineWidth: 0 },
+  dateInput: { height: 56, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1.5, borderColor: 'rgba(224,80,110,0.3)', borderRadius: 16, textAlign: 'center', color: '#fff', fontSize: 20, fontWeight: '800', width: '100%', paddingVertical: 0, outlineStyle: 'none', outlineWidth: 0 },
   errorText: { fontSize: 12, color: '#ef4444', textTransform: 'lowercase', marginTop: 10 },
 });
