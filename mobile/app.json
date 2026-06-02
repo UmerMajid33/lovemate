@@ -26,6 +26,12 @@
     },
     "plugins": [
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "5bc3d449-57d2-418f-b267-b5ea398ed0dd"
+      }
+    },
+    "owner": "umermaji33s-organization"
   }
 }
