@@ -22,6 +22,8 @@ function getTransporter() {
       port: Number(process.env.SMTP_PORT) || 465,
       secure: (Number(process.env.SMTP_PORT) || 465) === 465,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      family: 4,            // force IPv4 — many hosts (e.g. Render) can't reach Gmail over IPv6
+      connectionTimeout: 15000,
     });
   }
   return transporter;
