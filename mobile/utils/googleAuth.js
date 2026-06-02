@@ -9,6 +9,7 @@
 //      For the Android client, the package name + SHA-1 must match your build.
 //   3. Paste the IDs below. Until they're filled in, the buttons show a friendly notice.
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { saveUser, setLoggedIn, getUser } from './storage';
@@ -87,6 +88,14 @@ export async function completeGoogleProfile(name, gender, birthday) {
  * Call promptAsync() on button press. onSuccess(user) fires after profile resolves.
  */
 export function useGoogleAuth(onSuccess, onError) {
+  // Google OAuth is web-only here (no native client ids configured). On a
+  // standalone Android/iOS build, Google.useAuthRequest can't build a valid
+  // request and crashes the screen — so skip it entirely off web. Platform.OS
+  // is constant for the app's lifetime, so this branch keeps hook order stable.
+  if (Platform.OS !== 'web') {
+    return { promptAsync: () => onError?.('google sign-in is available on the web version'), ready: false };
+  }
+
   const [request, response, promptAsync] = Google.useAuthRequest(GOOGLE_CONFIG);
 
   useEffect(() => {

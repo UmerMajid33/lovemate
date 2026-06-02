@@ -532,23 +532,27 @@ export default function Login({ onNavigate }) {
               </LinearGradient>
             </SpringButton>
 
-            <View style={styles.orRow}>
-              <View style={styles.orLine} />
-              <Text style={styles.orText}>or continue with</Text>
-              <View style={styles.orLine} />
-            </View>
+            {Platform.OS === 'web' && (
+              <>
+                <View style={styles.orRow}>
+                  <View style={styles.orLine} />
+                  <Text style={styles.orText}>or continue with</Text>
+                  <View style={styles.orLine} />
+                </View>
 
-            <TouchableOpacity
-              style={styles.googleBtn}
-              activeOpacity={0.85}
-              onPress={handleGoogle}
-              disabled={googleBusy}
-            >
-              <GoogleLogo size={20} />
-              <Text style={styles.googleBtnText}>
-                {googleBusy ? 'signing in…' : 'continue with google'}
-              </Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.googleBtn}
+                  activeOpacity={0.85}
+                  onPress={handleGoogle}
+                  disabled={googleBusy}
+                >
+                  <GoogleLogo size={20} />
+                  <Text style={styles.googleBtnText}>
+                    {googleBusy ? 'signing in…' : 'continue with google'}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
           </Animated.View>
 
           {/* Account Register Action Link */}

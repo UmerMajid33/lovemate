@@ -720,24 +720,28 @@ export default function Register({ onNavigate }) {
                 <View style={{ height: 8 }} />
                 <ShimmerButton label="get started →" onPress={handleSubmit} disabled={!isReady} loading={loading} />
 
-                <View style={styles.orRow}>
-                  <View style={styles.orLine} />
-                  <Text style={styles.orText}>or sign up with</Text>
-                  <View style={styles.orLine} />
-                </View>
+                {Platform.OS === 'web' && (
+                  <>
+                    <View style={styles.orRow}>
+                      <View style={styles.orLine} />
+                      <Text style={styles.orText}>or sign up with</Text>
+                      <View style={styles.orLine} />
+                    </View>
 
-                {/* Google SSO */}
-                <TouchableOpacity
-                  style={styles.googleBtn}
-                  activeOpacity={0.85}
-                  onPress={handleGoogle}
-                  disabled={googleBusy}
-                >
-                  <GoogleLogo size={20} />
-                  <Text style={styles.googleBtnText}>
-                    {googleBusy ? 'connecting…' : 'continue with google'}
-                  </Text>
-                </TouchableOpacity>
+                    {/* Google SSO */}
+                    <TouchableOpacity
+                      style={styles.googleBtn}
+                      activeOpacity={0.85}
+                      onPress={handleGoogle}
+                      disabled={googleBusy}
+                    >
+                      <GoogleLogo size={20} />
+                      <Text style={styles.googleBtnText}>
+                        {googleBusy ? 'connecting…' : 'continue with google'}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </>
             ) : (
               /* OTP verification overlay */
