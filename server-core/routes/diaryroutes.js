@@ -5,7 +5,7 @@ const router = express.Router();
 
 // POST /api/diary/add — save a memory to the shared home diary
 router.post('/add', async (req, res) => {
-  const { linkcode, author, authorname, mood, title, text } = req.body;
+  const { linkcode, author, authorname, mood, title, text, image } = req.body;
   if (!linkcode || !author || !text || !text.trim()) {
     return res.status(400).json({ error: 'missing fields' });
   }
@@ -14,6 +14,7 @@ router.post('/add', async (req, res) => {
       linkcode: linkcode.toLowerCase(),
       author, authorname: authorname || '',
       mood: mood || '📖', title: title || '', text: text.trim(),
+      image: typeof image === 'string' ? image : '',
     });
     res.status(201).json({ entry });
   } catch (err) {

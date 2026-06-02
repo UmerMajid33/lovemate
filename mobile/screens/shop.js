@@ -9,6 +9,8 @@ import Svg, {
   LinearGradient as SvgLG, Stop, G, Ellipse
 } from 'react-native-svg';
 import { API_BASE } from '../utils/api.js';
+import { colors as TC, fonts as TF } from '../theme/theme.js';
+import SpaceBackground from '../theme/SpaceBackground.js';
 
 const { width } = Dimensions.get('window');
 
@@ -26,11 +28,11 @@ const CATALOG = [
   { id: 'stamp_love',     name: 'love stamp',    price: 1000,  cat: 'stamp', desc: 'seal every letter with this' },
 ];
 
-const CAT_COLORS = { gift: '#ff4d6d', badge: '#a855f7', stamp: '#0ea5e9' };
+const CAT_COLORS = { gift: '#E0506E', badge: '#9B8BC4', stamp: '#0ea5e9' };
 
 // Rarity tier drivers for cards & border glows
 function rarityOf(price) {
-  if (price >= 20000) return { key: 'legendary', color: '#fbbf24', glow: 'rgba(251,191,36,0.22)' };
+  if (price >= 20000) return { key: 'legendary', color: '#C9A86A', glow: 'rgba(201,168,106,0.22)' };
   if (price >= 6000)  return { key: 'epic',      color: '#c084fc', glow: 'rgba(192,132,252,0.18)' };
   if (price >= 2500)  return { key: 'rare',       color: '#22d3ee', glow: 'rgba(34,211,238,0.16)' };
   return                     { key: 'common',    color: '#94a3b8', glow: 'rgba(148,163,184,0.12)' };
@@ -63,7 +65,7 @@ function ProductImage({ itemId, color, size = 90 }) {
       <Defs>
         <RadialGradient id="petalGlow" cx="35%" cy="30%" rx="60%" ry="60%">
           <Stop offset="0%" stopColor="#ff758f" />
-          <Stop offset="55%" stopColor="#ff4d6d" />
+          <Stop offset="55%" stopColor="#E0506E" />
           <Stop offset="100%" stopColor="#800020" />
         </RadialGradient>
         <SvgLG id="stemGrad" x1="0" y1="0" x2="0" y2="1">
@@ -129,12 +131,12 @@ function ProductImage({ itemId, color, size = 90 }) {
       <Defs>
         <RadialGradient id="starGlow" cx="45%" cy="40%" rx="55%" ry="55%">
           <Stop offset="0%" stopColor="#ffffff" />
-          <Stop offset="45%" stopColor="#fbbf24" />
+          <Stop offset="45%" stopColor="#C9A86A" />
           <Stop offset="100%" stopColor="#d97706" />
         </RadialGradient>
         <SvgLG id="starTail" x1="0" y1="1" x2="1" y2="0">
-          <Stop offset="0%" stopColor="rgba(251,191,36,0)" />
-          <Stop offset="65%" stopColor="rgba(251,191,36,0.3)" />
+          <Stop offset="0%" stopColor="rgba(201,168,106,0)" />
+          <Stop offset="65%" stopColor="rgba(201,168,106,0.3)" />
           <Stop offset="100%" stopColor="rgba(255,255,255,0.9)" />
         </SvgLG>
       </Defs>
@@ -159,7 +161,7 @@ function ProductImage({ itemId, color, size = 90 }) {
       <Defs>
         <RadialGradient id="balloonSph" cx="30%" cy="30%" rx="65%" ry="65%">
           <Stop offset="0%" stopColor="#ff85a1" stopOpacity="0.95" />
-          <Stop offset="55%" stopColor="#ff4d6d" stopOpacity="0.95" />
+          <Stop offset="55%" stopColor="#E0506E" stopOpacity="0.95" />
           <Stop offset="100%" stopColor="#a4133c" stopOpacity="0.9" />
         </RadialGradient>
         <RadialGradient id="glareGrad" cx="30%" cy="30%" rx="30%" ry="30%">
@@ -216,7 +218,7 @@ function ProductImage({ itemId, color, size = 90 }) {
       <Ellipse cx="50" cy="68" rx="20" ry="18" fill="url(#teddyPlush)" />
       {/* Stitching Line / Heart Badge on Chest */}
       <G transform="translate(42, 60) scale(0.68)">
-        <Path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#ff4d6d" />
+        <Path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#E0506E" />
         <Ellipse cx="7.5" cy="7" rx="3.5" ry="2.2" fill="rgba(255,255,255,0.4)" transform="rotate(-30, 7.5, 7)" />
       </G>
     </Svg>
@@ -432,7 +434,7 @@ function ConfirmModal({ item, mode, balance, partnerName, onConfirm, onClose }) 
   }, [item]);
 
   if (!item) return null;
-  const accentColor = CAT_COLORS[item.cat] || '#ff4d6d';
+  const accentColor = CAT_COLORS[item.cat] || '#E0506E';
   const rar = rarityOf(item.price);
 
   return (
@@ -486,7 +488,7 @@ function ConfirmModal({ item, mode, balance, partnerName, onConfirm, onClose }) 
 
 // ─── Premium Glassmorphic Emporium Product Card ──────────────────────────────
 function ShopItem({ item, onBuy, onGift, affordable }) {
-  const ac  = CAT_COLORS[item.cat] || '#ff4d6d';
+  const ac  = CAT_COLORS[item.cat] || '#E0506E';
   const rar = rarityOf(item.price);
   const pressScale = useRef(new Animated.Value(1)).current;
 
@@ -608,10 +610,8 @@ export default function ShopScreen({ onNavigate, params = {} }) {
 
   return (
     <SafeAreaView style={st.safe}>
-      <StatusBar barStyle="light-content" backgroundColor="#07060f" />
-      <LinearGradient colors={['#0b0716', '#0e0a1e', '#07060f']} style={StyleSheet.absoluteFill} />
-      <View style={[st.blob, { top: -80, right: -60, backgroundColor: '#fbbf24' }]} pointerEvents="none" />
-      <View style={[st.blob, { top: 200, left: -90, backgroundColor: '#ff4d6d' }]} pointerEvents="none" />
+      <StatusBar barStyle="light-content" backgroundColor={TC.bg} />
+      <SpaceBackground />
 
       {/* Header Row */}
       <View style={st.header}>
@@ -622,7 +622,7 @@ export default function ShopScreen({ onNavigate, params = {} }) {
           <Text style={st.headerTitle}>gift shop</Text>
           <Text style={st.headerSub}>treat {partnerName || 'your partner'} · or yourself</Text>
         </View>
-        <LinearGradient colors={['rgba(251,191,36,0.22)', 'rgba(251,191,36,0.08)']} style={st.fcBadge}>
+        <LinearGradient colors={['rgba(201,168,106,0.22)', 'rgba(201,168,106,0.08)']} style={st.fcBadge}>
           <Coin size={15} />
           <Text style={st.fcText}>{fmt(balance)}</Text>
         </LinearGradient>
@@ -632,7 +632,7 @@ export default function ShopScreen({ onNavigate, params = {} }) {
       <View style={st.tabs}>
         {['shop', 'inventory'].map(t => (
           <TouchableOpacity key={t} onPress={() => setTab(t)} style={st.tab} activeOpacity={0.75}>
-            <Text style={[st.tabText, tab === t && { color: '#ff4d6d' }]}>{t}</Text>
+            <Text style={[st.tabText, tab === t && { color: '#E0506E' }]}>{t}</Text>
             {tab === t && <View style={st.tabLine} />}
           </TouchableOpacity>
         ))}
@@ -675,7 +675,7 @@ export default function ShopScreen({ onNavigate, params = {} }) {
               <View style={{ gap: 10 }}>
                 {inventory.map((item, i) => {
                   const catalogItem = CATALOG.find(c => c.id === item.itemid);
-                  const ac = CAT_COLORS[catalogItem?.cat] || '#ff4d6d';
+                  const ac = CAT_COLORS[catalogItem?.cat] || '#E0506E';
                   return (
                     <LinearGradient key={i} colors={[`${ac}0e`, 'rgba(10,10,20,0.98)']}
                       style={[st.invRow, { borderColor: `${ac}25` }]}>
@@ -712,22 +712,22 @@ export default function ShopScreen({ onNavigate, params = {} }) {
 
 // ─── Design System & Styles ───────────────────────────────────────────────────
 const st = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#07060f' },
+  safe: { flex: 1, backgroundColor: TC.bg },
   blob: { position: 'absolute', width: 230, height: 230, borderRadius: 115, opacity: 0.12 },
   scroll: { alignItems: 'center', paddingHorizontal: 18, paddingBottom: 120 },
 
   header:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 10 },
-  headerTitle: { fontSize: 22, fontWeight: '900', color: '#fff', textTransform: 'lowercase', letterSpacing: -0.5 },
+  headerTitle: { fontFamily: TF.serif, fontSize: 24, color: '#fff', letterSpacing: -0.4 },
   headerSub:   { fontSize: 12, color: 'rgba(255,255,255,0.4)', textTransform: 'lowercase', marginTop: 2 },
   backBtn:     { width: 42, height: 42, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
   backBtnText: { fontSize: 19, color: '#fff', fontWeight: '800', marginTop: -2 },
-  fcBadge:     { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.2, borderColor: 'rgba(251,191,36,0.35)', paddingHorizontal: 13, height: 42, borderRadius: 14 },
+  fcBadge:     { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.2, borderColor: 'rgba(201,168,106,0.35)', paddingHorizontal: 13, height: 42, borderRadius: 14 },
   fcText:      { fontSize: 14, color: '#fde68a', fontWeight: '900' },
 
   tabs:     { flexDirection: 'row', paddingHorizontal: 18, marginBottom: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
   tab:      { flex: 1, alignItems: 'center', paddingVertical: 12, position: 'relative' },
   tabText:  { fontSize: 13, fontWeight: '800', color: 'rgba(255,255,255,0.3)', textTransform: 'lowercase', letterSpacing: 0.4 },
-  tabLine:  { position: 'absolute', bottom: 0, left: 24, right: 24, height: 2.5, backgroundColor: '#ff4d6d', borderRadius: 2 },
+  tabLine:  { position: 'absolute', bottom: 0, left: 24, right: 24, height: 2.5, backgroundColor: '#E0506E', borderRadius: 2 },
 
   sectionHead:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 14 },
   sectionLabel: { fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'lowercase', letterSpacing: 1.6, fontWeight: '800' },
@@ -758,10 +758,10 @@ const st = StyleSheet.create({
   toastText: { color: '#fff', fontSize: 13, fontWeight: '700', textTransform: 'lowercase' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.82)', justifyContent: 'flex-end' },
-  modalSheet:   { backgroundColor: '#0e0c1a', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 28, paddingBottom: 44, borderTopWidth: 1.5, borderColor: 'rgba(255,77,109,0.18)' },
+  modalSheet:   { backgroundColor: '#0e0c1a', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 28, paddingBottom: 44, borderTopWidth: 1.5, borderColor: 'rgba(224,80,110,0.18)' },
   confirmName:  { fontSize: 22, fontWeight: '900', color: '#fff', textTransform: 'lowercase', textAlign: 'center', letterSpacing: -0.5 },
   confirmDesc:  { fontSize: 13, color: 'rgba(255,255,255,0.35)', textTransform: 'lowercase', textAlign: 'center', marginTop: 6, marginBottom: 16 },
-  confirmGiftLabel: { backgroundColor: 'rgba(255,77,109,0.12)', borderRadius: 100, paddingHorizontal: 16, paddingVertical: 6, marginBottom: 14, alignSelf: 'center' },
+  confirmGiftLabel: { backgroundColor: 'rgba(224,80,110,0.12)', borderRadius: 100, paddingHorizontal: 16, paddingVertical: 6, marginBottom: 14, alignSelf: 'center' },
   confirmGiftText:  { fontSize: 12, color: '#ff9ec7', fontWeight: '700', textTransform: 'lowercase' },
   confirmPriceRow:  { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center' },
   confirmPrice:     { fontSize: 18, color: '#fde68a', fontWeight: '900' },

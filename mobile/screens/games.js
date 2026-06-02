@@ -298,6 +298,8 @@ function TapRacer({ onComplete, solo = false, partnerName, onScore }) {
   const timerRef = useRef();
   const rivalRef = useRef(0);
   const rivalIntRef = useRef();
+  const aliveRef = useRef(true);
+  const endedRef = useRef(false);
 
   const youProg   = useRef(new Animated.Value(0)).current;
   const rivalProg = useRef(new Animated.Value(0)).current;
@@ -317,31 +319,40 @@ function TapRacer({ onComplete, solo = false, partnerName, onScore }) {
       if (c <= 0) { clearInterval(cd); startRace(); }
     }, 1000);
     return () => {
+      aliveRef.current = false;
       clearInterval(cd); clearInterval(timerRef.current);
       clearInterval(rivalIntRef.current); clearInterval(roadIntRef.current);
     };
   }, []);
 
+  const finish = () => {
+    if (endedRef.current) return;
+    endedRef.current = true;
+    clearInterval(timerRef.current); clearInterval(rivalIntRef.current); clearInterval(roadIntRef.current);
+    setTimeout(() => onComplete(tapsRef.current), 400);
+  };
+
   const startRace = () => {
     // Road scroll is tap-reactive: speed surges on each gas tap, decays when idle.
     roadIntRef.current = setInterval(() => {
+      if (!aliveRef.current) return;
       roadSpeedRef.current = Math.max(8, roadSpeedRef.current - 1.6);
       scrollPosRef.current = (scrollPosRef.current + roadSpeedRef.current) % 36;
       scrollY.setValue(scrollPosRef.current);
     }, 33);
 
-    timerRef.current = setInterval(() => setTime(t => {
-      if (t <= 1) {
-        clearInterval(timerRef.current); clearInterval(rivalIntRef.current); clearInterval(roadIntRef.current);
-        setTimeout(() => onComplete(tapsRef.current), 400);
-        return 0;
-      }
-      return t - 1;
-    }), 1000);
+    timerRef.current = setInterval(() => {
+      if (!aliveRef.current) return;
+      setTime(t => {
+        if (t <= 1) { finish(); return 0; }
+        return t - 1;
+      });
+    }, 1000);
 
     // rival car advances steadily
     const step = 1 / (rivalSecs * 10); // updates 10×/sec
     rivalIntRef.current = setInterval(() => {
+      if (!aliveRef.current) return;
       rivalRef.current = Math.min(1, rivalRef.current + step);
       setRivalP(rivalRef.current);
       Animated.timing(rivalProg, { toValue: rivalRef.current, duration: 100, useNativeDriver: true }).start();
@@ -349,12 +360,13 @@ function TapRacer({ onComplete, solo = false, partnerName, onScore }) {
   };
 
   const handleGas = () => {
-    if (countdown > 0) return;
+    if (countdown > 0 || endedRef.current) return;
     tapsRef.current++; setTaps(tapsRef.current); onScore?.(tapsRef.current);
     const p = Math.min(1, tapsRef.current / RACE_TAPS);
-    Animated.spring(youProg, { toValue: p, tension: 120, friction: 14, useNativeDriver: true }).start();
-    // each tap floors it — the road blurs faster
+    // timing (not spring) → never overshoots past 1, keeps the car-rise clamp clean
+    Animated.timing(youProg, { toValue: p, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
     roadSpeedRef.current = Math.min(46, roadSpeedRef.current + 7);
+    if (tapsRef.current >= RACE_TAPS) finish(); // reached the finish line → win early
   };
 
   const timeColor = timeLeft > 7 ? '#22c55e' : '#ef4444';
@@ -584,7 +596,7 @@ function Balloon3D({ id, x, color, onPop }) {
   const popped  = useRef(false);
 
   useEffect(() => {
-    const dur = 2400 + Math.random() * 800;
+    const dur = 5200 + Math.random() * 2200;   // slower, tappable rise (~5-7s)
     Animated.timing(floatY, { toValue: -160, duration: dur, useNativeDriver: true }).start(({ finished }) => {
       if (finished && !popped.current) onPop(id, false);
     });
@@ -605,8 +617,8 @@ function Balloon3D({ id, x, color, onPop }) {
 
   return (
     <Animated.View style={{ position: 'absolute', left: x, transform: [{ translateY: floatY }, { translateX: sway }, { scale: sc }], opacity }}>
-      <TouchableOpacity onPress={pop} activeOpacity={1}>
-        <View style={{ shadowColor: color.fill, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.7, shadowRadius: 16, elevation: 12 }}>
+      <TouchableOpacity onPress={pop} onPressIn={pop} activeOpacity={1} hitSlop={{ top: 24, bottom: 24, left: 24, right: 24 }}>
+        <View style={{ borderRadius: 32, shadowColor: color.fill, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.7, shadowRadius: 16, elevation: 12 }}>
           <Svg width={58} height={80} viewBox="0 0 58 80">
             <Defs>
               <RadialGradient id={`bg${id}`} cx="35%" cy="30%" rx="65%" ry="65%">
@@ -1059,26 +1071,46 @@ function BounceBlitz({ onComplete, onScore }) {
 
   return (
     <View style={{ flex: 1 }}>
-      <LinearGradient colors={['#160009', '#2d0012', '#160009']} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['#0B0410', '#1A0716', '#0B0410']} style={StyleSheet.absoluteFill} />
+      {/* ambient glow + vignette */}
+      <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Defs>
+          <RadialGradient id="bbGlow" cx="50%" cy="34%" rx="60%" ry="45%">
+            <Stop offset="0%" stopColor="#ff4d6d" stopOpacity="0.16" />
+            <Stop offset="100%" stopColor="#0B0410" stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Rect x="0" y="0" width={W} height={height} fill="url(#bbGlow)" />
+      </Svg>
       <GameHud
         left={{ label: 'bounces', value: score, color: '#ff9ec7' }}
         right={{ label: 'time', value: `${timeLeft}s`, color: timeColor }}
         timeLeft={timeLeft} totalTime={DURATION} timeColor={timeColor}
       />
 
-      {/* Danger line */}
-      <View style={{ position: 'absolute', top: BB_FLOOR, left: 0, right: 0, height: 2, backgroundColor: 'rgba(239,68,68,0.4)' }} />
-      <Text style={{ position: 'absolute', top: BB_FLOOR + 6, alignSelf: 'center', fontSize: 10, color: 'rgba(239,68,68,0.5)', textTransform: 'lowercase', letterSpacing: 1 }}>don't let it drop</Text>
+      {/* Danger line — soft glowing gradient */}
+      <LinearGradient colors={['transparent', 'rgba(239,68,68,0.6)', 'transparent']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        style={{ position: 'absolute', top: BB_FLOOR, left: 0, right: 0, height: 2 }} pointerEvents="none" />
+      <Text style={{ position: 'absolute', top: BB_FLOOR + 7, alignSelf: 'center', fontSize: 10, color: 'rgba(239,68,68,0.55)', textTransform: 'lowercase', letterSpacing: 2 }}>don't let it drop</Text>
 
-      {/* The physics heart */}
+      {/* The physics heart — round glow (borderRadius on the shadow view kills the square halo) */}
       <Animated.View style={{ position: 'absolute', width: BB_R * 2, height: BB_R * 2, transform: ballPos.getTranslateTransform() }} pointerEvents="none">
-        <View style={{ flex: 1, shadowColor: '#ff4d6d', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 16, elevation: 14 }}>
-          <LinearGradient colors={['#ff9ec7', '#ff4d6d', '#a30030']} style={{ flex: 1, borderRadius: BB_R, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' }}>
-            <View style={{ position: 'absolute', top: 8, left: 12, width: 16, height: 9, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.4)' }} />
-            <Svg width={BB_R} height={BB_R} viewBox="0 0 24 24">
-              <Path d="M12 21s-7-4.5-9-9.5C1.5 7.5 4 4 7.5 4c2 0 3.5 1 4.5 2.5C13 5 14.5 4 16.5 4 20 4 22.5 7.5 21 11.5c-2 5-9 9.5-9 9.5z" fill="#fff" />
-            </Svg>
-          </LinearGradient>
+        <View style={{ flex: 1, borderRadius: BB_R, shadowColor: '#ff4d6d', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.95, shadowRadius: 18, elevation: 14 }}>
+          <Svg width={BB_R * 2} height={BB_R * 2} viewBox="0 0 100 100">
+            <Defs>
+              <RadialGradient id="bbBall" cx="38%" cy="32%" rx="68%" ry="68%">
+                <Stop offset="0%" stopColor="#ffd1dc" />
+                <Stop offset="48%" stopColor="#ff4d6d" />
+                <Stop offset="100%" stopColor="#a30030" />
+              </RadialGradient>
+            </Defs>
+            <Circle cx="50" cy="50" r="48" fill="url(#bbBall)" stroke="rgba(255,255,255,0.35)" strokeWidth="2" />
+            {/* specular highlight */}
+            <Ellipse cx="37" cy="33" rx="13" ry="8" fill="#ffffff" opacity="0.5" />
+            {/* heart emblem */}
+            <Path d="M12 21s-7-4.5-9-9.5C1.5 7.5 4 4 7.5 4c2 0 3.5 1 4.5 2.5C13 5 14.5 4 16.5 4 20 4 22.5 7.5 21 11.5c-2 5-9 9.5-9 9.5z"
+              fill="#fff" opacity="0.92" transform="translate(50 52) scale(2.0) translate(-12 -12)" />
+          </Svg>
         </View>
       </Animated.View>
 
@@ -1197,18 +1229,80 @@ function CupidArrow({ onComplete, onScore }) {
       <GameHud left={{ label: 'fc', value: score, color: '#fbbf24' }} right={{ label: 'arrows', value: arrowsLeftRef.current, color: '#ff6b8a' }} />
 
       <Svg width={W} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Defs>
+          <RadialGradient id="heartG" cx="38%" cy="32%" rx="70%" ry="70%">
+            <Stop offset="0%"  stopColor="#ffd1dc" />
+            <Stop offset="45%" stopColor="#ff4d6d" />
+            <Stop offset="100%" stopColor="#a30030" />
+          </RadialGradient>
+          <RadialGradient id="heartGold" cx="38%" cy="32%" rx="70%" ry="70%">
+            <Stop offset="0%"  stopColor="#fff3c4" />
+            <Stop offset="50%" stopColor="#fbbf24" />
+            <Stop offset="100%" stopColor="#b45309" />
+          </RadialGradient>
+          <RadialGradient id="cupAura" cx="50%" cy="50%" rx="50%" ry="50%">
+            <Stop offset="0%"  stopColor={gold ? '#fbbf24' : '#ff4d6d'} stopOpacity={gold ? 0.35 : 0.28} />
+            <Stop offset="100%" stopColor="#0a0010" stopOpacity="0" />
+          </RadialGradient>
+          <SvgLinearGradient id="shaftG" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0%" stopColor="#fde68a" />
+            <Stop offset="100%" stopColor="#e9d5ff" />
+          </SvgLinearGradient>
+        </Defs>
+
+        {/* soft aura */}
+        <Ellipse cx={cx} cy={cy} rx={R + 70} ry={R + 70} fill="url(#cupAura)" />
+
         <G transform={`rotate(${rot} ${cx} ${cy})`}>
-          <Circle cx={cx} cy={cy} r={R + 12} fill={gold ? 'rgba(251,191,36,0.18)' : 'rgba(255,77,109,0.15)'} />
-          <Path d="M12 21s-7-4.5-9-9.5C1.5 7.5 4 4 7.5 4c2 0 3.5 1 4.5 2.5C13 5 14.5 4 16.5 4 20 4 22.5 7.5 21 11.5c-2 5-9 9.5-9 9.5z"
-            fill={heartFill} stroke="#fff" strokeWidth="0.7" transform={`translate(${cx} ${cy}) scale(${R / 9}) translate(-12 -12)`} />
+          {/* pinned arrows — shaft + fletching + head */}
           {pinned.map((ang, i) => {
-            const p = arrowAt(ang, R + 42);
-            return (<G key={i}><Path d={`M ${p.x1} ${p.y1} L ${p.x2} ${p.y2}`} stroke="#e9d5ff" strokeWidth="3" /><Circle cx={p.x2} cy={p.y2} r={4.5} fill="#a855f7" /></G>);
+            const a = ang * Math.PI / 180;
+            const dx = Math.cos(a), dy = Math.sin(a), px = -dy, py = dx;
+            const ix = cx + (R - 2) * dx,  iy = cy + (R - 2) * dy;   // near heart
+            const ox = cx + (R + 40) * dx, oy = cy + (R + 40) * dy;  // tip
+            const hb = R + 30;                                       // head base
+            const hbx = cx + hb * dx, hby = cy + hb * dy;
+            const fx = cx + (R + 2) * dx, fy = cy + (R + 2) * dy;    // fletch root
+            const tipC = gold ? '#fbbf24' : '#c084fc';
+            return (
+              <G key={i}>
+                <Path d={`M ${ix} ${iy} L ${ox} ${oy}`} stroke="url(#shaftG)" strokeWidth="2.6" strokeLinecap="round" />
+                {/* arrowhead */}
+                <Path d={`M ${ox} ${oy} L ${hbx + px * 5} ${hby + py * 5} L ${hbx - px * 5} ${hby - py * 5} Z`} fill={tipC} />
+                {/* fletching */}
+                <Path d={`M ${fx} ${fy} L ${fx + px * 5 - dx * 8} ${fy + py * 5 - dy * 8}`} stroke="#f9a8d4" strokeWidth="2" strokeLinecap="round" />
+                <Path d={`M ${fx} ${fy} L ${fx - px * 5 - dx * 8} ${fy - py * 5 - dy * 8}`} stroke="#f9a8d4" strokeWidth="2" strokeLinecap="round" />
+              </G>
+            );
           })}
+
+          {/* heart */}
+          <Path d="M12 21s-7-4.5-9-9.5C1.5 7.5 4 4 7.5 4c2 0 3.5 1 4.5 2.5C13 5 14.5 4 16.5 4 20 4 22.5 7.5 21 11.5c-2 5-9 9.5-9 9.5z"
+            fill={gold ? 'url(#heartGold)' : 'url(#heartG)'} stroke="rgba(255,255,255,0.5)" strokeWidth="0.5"
+            transform={`translate(${cx} ${cy}) scale(${R / 9}) translate(-12 -12)`} />
+          {/* specular shine */}
+          <Ellipse cx={cx - R * 0.32} cy={cy - R * 0.34} rx={R * 0.22} ry={R * 0.14} fill="#ffffff" opacity={0.45} transform={`rotate(-25 ${cx - R * 0.32} ${cy - R * 0.34})`} />
         </G>
 
-        {flyY != null && (<G><Path d={`M ${cx} ${flyY} L ${cx} ${flyY + 46}`} stroke="#fff" strokeWidth="3" /><Path d={`M ${cx} ${flyY} l -6 11 l 12 0 z`} fill="#ff4d6d" /></G>)}
-        {flyY == null && runRef.current && (<G><Path d={`M ${cx} ${cy + R + 90} L ${cx} ${cy + R + 136}`} stroke="#fff" strokeWidth="3" /><Path d={`M ${cx} ${cy + R + 90} l -6 11 l 12 0 z`} fill="#ff4d6d" /></G>)}
+        {/* gold-rush sparkles */}
+        {gold && [0, 72, 144, 216, 288].map((d, i) => {
+          const a = (d + now / 12) * Math.PI / 180, rr = R + 30;
+          const sxp = cx + rr * Math.cos(a), syp = cy + rr * Math.sin(a);
+          return <Path key={i} d={`M ${sxp} ${syp - 5} L ${sxp + 1.6} ${syp - 1.6} L ${sxp + 5} ${syp} L ${sxp + 1.6} ${syp + 1.6} L ${sxp} ${syp + 5} L ${sxp - 1.6} ${syp + 1.6} L ${sxp - 5} ${syp} L ${sxp - 1.6} ${syp - 1.6} Z`} fill="#fde68a" opacity={0.9} />;
+        })}
+
+        {/* flying / ready arrow (gold-tipped, fletched) */}
+        {(() => {
+          const baseY = flyY != null ? flyY : (runRef.current ? cy + R + 90 : null);
+          if (baseY == null) return null;
+          return (
+            <G>
+              <Path d={`M ${cx} ${baseY} L ${cx} ${baseY + 48}`} stroke="url(#shaftG)" strokeWidth="3" strokeLinecap="round" />
+              <Path d={`M ${cx} ${baseY} l -6 12 l 12 0 z`} fill={gold ? '#fbbf24' : '#ff4d6d'} />
+              <Path d={`M ${cx} ${baseY + 48} l -6 9 M ${cx} ${baseY + 48} l 6 9`} stroke="#f9a8d4" strokeWidth="2.4" strokeLinecap="round" />
+            </G>
+          );
+        })()}
       </Svg>
 
       <View style={{ position: 'absolute', bottom: 60, left: 40, right: 40, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' }} pointerEvents="none">
@@ -1315,8 +1409,48 @@ function StackMemories({ onComplete, onScore }) {
       {mult > 1 && <Text style={{ position: 'absolute', top: 96, alignSelf: 'center', color: '#fbbf24', fontWeight: '900', textTransform: 'lowercase', letterSpacing: 1 }} pointerEvents="none">{mult}x combo</Text>}
 
       <Svg width={W} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
-        {runRef.current && (<Rect x={m.x} y={BUILD_Y - SK_H} width={m.w} height={SK_H - 4} rx={5} fill={COLORS[mci][1]} stroke={COLORS[mci][0]} strokeWidth="2" />)}
-        {items.map((it, k) => (<Rect key={k} x={it.x} y={it.sy} width={it.w} height={SK_H - 4} rx={5} fill={COLORS[it.ci][1]} stroke={COLORS[it.ci][0]} strokeWidth="2" opacity={0.96} />))}
+        <Defs>
+          {COLORS.map((c, i) => (
+            <SvgLinearGradient key={i} id={`stk${i}`} x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%"   stopColor={lighten(c[1])} />
+              <Stop offset="55%"  stopColor={c[1]} />
+              <Stop offset="100%" stopColor={darken(c[1])} />
+            </SvgLinearGradient>
+          ))}
+          <RadialGradient id="stkGlow" cx="50%" cy="50%" rx="50%" ry="50%">
+            <Stop offset="0%" stopColor="#a78bfa" stopOpacity="0.16" />
+            <Stop offset="100%" stopColor="#070512" stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+
+        {/* ambient glow behind the tower */}
+        <Ellipse cx={W / 2} cy={BUILD_Y + SK_H * 2} rx={W * 0.55} ry={height * 0.32} fill="url(#stkGlow)" />
+
+        {/* placed blocks (3D-ish: gradient body + top sheen + grounding shadow) */}
+        {items.map((it, k) => {
+          const h = SK_H - 4;
+          return (
+            <G key={k}>
+              <Rect x={it.x + 3} y={it.sy + h - 3} width={it.w} height={6} rx={3} fill="#000" opacity={0.28} />
+              <Rect x={it.x} y={it.sy} width={it.w} height={h} rx={7} fill={`url(#stk${it.ci})`} />
+              <Rect x={it.x + 4} y={it.sy + 3} width={Math.max(0, it.w - 8)} height={h * 0.32} rx={4} fill="#ffffff" opacity={0.22} />
+              <Rect x={it.x} y={it.sy} width={it.w} height={h} rx={7} fill="none" stroke={COLORS[it.ci][0]} strokeWidth="1.2" opacity={0.55} />
+            </G>
+          );
+        })}
+
+        {/* moving block — glowing */}
+        {runRef.current && (() => {
+          const h = SK_H - 4, y = BUILD_Y - SK_H;
+          return (
+            <G>
+              <Rect x={m.x - 4} y={y - 4} width={m.w + 8} height={h + 8} rx={10} fill={COLORS[mci][1]} opacity={0.22} />
+              <Rect x={m.x} y={y} width={m.w} height={h} rx={7} fill={`url(#stk${mci})`} />
+              <Rect x={m.x + 4} y={y + 3} width={Math.max(0, m.w - 8)} height={h * 0.32} rx={4} fill="#ffffff" opacity={0.28} />
+              <Rect x={m.x} y={y} width={m.w} height={h} rx={7} fill="none" stroke={COLORS[mci][0]} strokeWidth="1.6" />
+            </G>
+          );
+        })()}
       </Svg>
 
       <Pressable style={StyleSheet.absoluteFill} onPress={drop} />
@@ -1326,7 +1460,7 @@ function StackMemories({ onComplete, onScore }) {
 }
 
 const GAME_COMPONENTS = {
-  reaction: ReactionRush, racer: TapRacer, goal: GoalRush,
+  reaction: ReactionRush, racer: TapRacer, race: TapRacer, goal: GoalRush,
   balloon: BalloonPop, memory: MemoryMatch, pattern: PatternMatch, emoji: EmojiBlitz,
   bounce: BounceBlitz, cupid: CupidArrow, stack: StackMemories,
 };
@@ -1345,21 +1479,25 @@ function GameTransition({ game, score, fcEarned, newBalance, onDone }) {
       Animated.spring(sc, { toValue: 1, tension: 70, friction: 8, useNativeDriver: true }),
       Animated.timing(fd, { toValue: 1, duration: 300, useNativeDriver: true }),
     ]).start();
-    // Coin pops in slightly later, then the FC number counts up
+    // Coin pops in slightly later
     Animated.sequence([
       Animated.delay(450),
       Animated.spring(coinSc, { toValue: 1, tension: 120, friction: 6, useNativeDriver: true }),
     ]).start();
-    if (fcEarned > 0) {
-      Animated.timing(fcCount, { toValue: fcEarned, duration: 900, delay: 600, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
-      const id = fcCount.addListener(({ value }) => setShownFc(Math.round(value)));
-      var cleanup = () => fcCount.removeListener(id);
-    }
     const t = setTimeout(() => {
       Animated.timing(out, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => onDone());
-    }, 2600);
-    return () => { clearTimeout(t); cleanup && cleanup(); };
+    }, 2900);
+    return () => clearTimeout(t);
   }, []);
+
+  // Count the FC up once the earn call resolves (fcEarned may arrive after mount).
+  useEffect(() => {
+    if (!(fcEarned > 0)) { setShownFc(0); return; }
+    fcCount.setValue(0);
+    const id = fcCount.addListener(({ value }) => setShownFc(Math.round(value)));
+    Animated.timing(fcCount, { toValue: fcEarned, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+    return () => fcCount.removeListener(id);
+  }, [fcEarned]);
 
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -1434,11 +1572,11 @@ function LobbyOrbs() {
   );
   return (
     <Animated.View style={{ flexDirection: 'row', alignItems: 'center', gap: 18, transform: [{ scale: beat }] }}>
-      <Orb color="#ff4d6d" emoji="🎮" />
-      <Svg width={26} height={26} viewBox="0 0 24 24">
-        <Path d="M12 21s-7-4.5-9-9.5C1.5 7.5 4 4 7.5 4c2 0 3.5 1 4.5 2.5C13 5 14.5 4 16.5 4 20 4 22.5 7.5 21 11.5c-2 5-9 9.5-9 9.5z" fill="#ff4d6d" />
+      <Orb color={TC.accent} emoji="🎮" />
+      <Svg width={24} height={24} viewBox="0 0 24 24">
+        <Path d="M12 21s-7-4.5-9-9.5C1.5 7.5 4 4 7.5 4c2 0 3.5 1 4.5 2.5C13 5 14.5 4 16.5 4 20 4 22.5 7.5 21 11.5c-2 5-9 9.5-9 9.5z" fill={TC.accentSoft} />
       </Svg>
-      <Orb color="#7c3aed" emoji="🕹️" />
+      <Orb color={TC.slate} emoji="🕹️" />
     </Animated.View>
   );
 }
@@ -1527,9 +1665,8 @@ function InviteLobby({ params, onStart, onBack }) {
   const partnerInvited = lobby.status === 'pending' && lobby.fromrole && lobby.fromrole !== role && fresh;
 
   return (
-    <View style={{ flex: 1 }}>
-      <LinearGradient colors={['#080810','#10081c','#080810']} style={StyleSheet.absoluteFill} />
-      <View style={{ position: 'absolute', top: height * 0.12, alignSelf: 'center', width: 300, height: 300, borderRadius: 150, backgroundColor: '#7c3aed', opacity: 0.06 }} />
+    <View style={{ flex: 1, backgroundColor: TC.bg }}>
+      <SpaceBackground />
 
       {/* Back */}
       <View style={st.floatHeader} pointerEvents="box-none">
@@ -1538,51 +1675,44 @@ function InviteLobby({ params, onStart, onBack }) {
         </TouchableOpacity>
       </View>
 
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 34 }}>
-        <View style={{ marginBottom: 30 }}><LobbyOrbs /></View>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
+        <View style={st.lobbyCard}>
+          <View style={{ marginBottom: 22 }}><LobbyOrbs /></View>
 
-        <Text style={st.lobbyTitle}>game arena</Text>
+          <Text style={st.lbKicker}>two-player</Text>
+          <Text style={st.lobbyTitle}>game arena</Text>
 
-        {partnerInvited ? (
-          <>
-            <Text style={st.lobbySub}>
-              {lobby.fromname || 'your partner'} wants to play with you right now!
-            </Text>
-            <TouchableOpacity onPress={acceptInvite} disabled={busy} activeOpacity={0.85}
-              style={{ width: '100%', borderRadius: 20, overflow: 'hidden', marginTop: 28 }}>
-              <LinearGradient colors={['#86efac','#22c55e','#15803d']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={st.lobbyBtn}>
-                <Text style={st.lobbyBtnText}>{busy ? 'starting…' : 'accept & play  →'}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </>
-        ) : iInvited ? (
-          <>
-            <View style={{ alignItems: 'center', marginTop: 6 }}>
+          {partnerInvited ? (
+            <>
+              <Text style={st.lobbySub}>{lobby.fromname || 'your partner'} wants to play with you right now.</Text>
+              <TouchableOpacity onPress={acceptInvite} disabled={busy} activeOpacity={0.88}
+                style={{ width: '100%', borderRadius: 16, overflow: 'hidden', marginTop: 24 }}>
+                <LinearGradient colors={['#86efac','#5BB37E','#2f7d52']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.lobbyBtn}>
+                  <Text style={st.lobbyBtnText}>{busy ? 'starting…' : 'accept & play  →'}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </>
+          ) : iInvited ? (
+            <>
               <Text style={st.lobbySub}>invite sent — waiting for {role === 'creator' ? 'your partner' : 'them'} to accept…</Text>
-              <View style={st.waitDots}>
-                {[0,1,2].map(i => <WaitDot key={i} delay={i * 200} />)}
-              </View>
-            </View>
-            <TouchableOpacity onPress={sendInvite} activeOpacity={0.7} style={{ marginTop: 24 }}>
-              <Text style={st.lobbyResend}>tap to re-send invite</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <Text style={st.lobbySub}>
-              games are for two. invite your partner — once they accept, the arena goes live for both of you.
-            </Text>
-            <TouchableOpacity onPress={sendInvite} disabled={busy} activeOpacity={0.85}
-              style={{ width: '100%', borderRadius: 20, overflow: 'hidden', marginTop: 28 }}>
-              <LinearGradient colors={['#ff9ec7','#ff4d6d','#a30030']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={st.lobbyBtn}>
-                <Text style={st.lobbyBtnText}>{busy ? 'sending…' : 'invite partner to play  →'}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <Text style={st.lobbyHint}>you'll both earn fantasy cash for every game you finish</Text>
-          </>
-        )}
+              <View style={st.waitDots}>{[0,1,2].map(i => <WaitDot key={i} delay={i * 200} />)}</View>
+              <TouchableOpacity onPress={sendInvite} activeOpacity={0.7} style={{ marginTop: 18 }}>
+                <Text style={st.lobbyResend}>tap to re-send invite</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={st.lobbySub}>games are for two. invite your partner — once they accept, the arena goes live for both of you.</Text>
+              <TouchableOpacity onPress={sendInvite} disabled={busy} activeOpacity={0.88}
+                style={{ width: '100%', borderRadius: 16, overflow: 'hidden', marginTop: 24 }}>
+                <LinearGradient colors={['#EC7186', TC.accent, '#B23E54']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.lobbyBtn}>
+                  <Text style={st.lobbyBtnText}>{busy ? 'sending…' : 'invite partner to play  →'}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              <Text style={st.lobbyHint}>you'll both earn fantasy cash for every game you finish</Text>
+            </>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -1597,7 +1727,7 @@ function WaitDot({ delay }) {
       Animated.timing(a, { toValue: 0.3, duration: 400, useNativeDriver: true }),
     ])).start();
   }, []);
-  return <Animated.View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#ff4d6d', opacity: a }} />;
+  return <Animated.View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: TC.accent, opacity: a }} />;
 }
 
 // Fisher–Yates shuffle of game indices. `avoidFirst` keeps the new first game
@@ -3303,13 +3433,15 @@ const st = StyleSheet.create({
   dotPending: { backgroundColor: 'rgba(255,255,255,0.15)' },
 
   // Lobby
-  lobbyTitle:  { fontSize: 34, fontWeight: '900', color: '#fff', textTransform: 'lowercase', letterSpacing: -1, marginBottom: 14 },
-  lobbySub:    { fontSize: 14, color: 'rgba(255,255,255,0.4)', textTransform: 'lowercase', textAlign: 'center', lineHeight: 21 },
-  lobbyBtn:    { height: 58, alignItems: 'center', justifyContent: 'center' },
-  lobbyBtnText:{ color: '#fff', fontSize: 16, fontWeight: '900', textTransform: 'lowercase', letterSpacing: 0.5 },
-  lobbyHint:   { fontSize: 11, color: 'rgba(251,191,36,0.6)', textTransform: 'lowercase', textAlign: 'center', marginTop: 18, letterSpacing: 0.5 },
-  lobbyResend: { fontSize: 12, color: 'rgba(255,255,255,0.4)', textTransform: 'lowercase', letterSpacing: 0.5 },
-  waitDots:    { flexDirection: 'row', gap: 8, marginTop: 18 },
+  lobbyCard:   { width: '100%', maxWidth: 380, alignItems: 'center', backgroundColor: TC.surface, borderRadius: 28, borderWidth: 1, borderColor: TC.hairline, paddingVertical: 34, paddingHorizontal: 26, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.4, shadowRadius: 28, elevation: 12 },
+  lbKicker:    { fontSize: 11, color: TC.textMuted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 3 },
+  lobbyTitle:  { fontFamily: TF.serif, fontSize: 34, color: TC.text, letterSpacing: -0.5, marginTop: 4, marginBottom: 14 },
+  lobbySub:    { fontSize: 14, color: TC.textSoft, textAlign: 'center', lineHeight: 21 },
+  lobbyBtn:    { height: 56, alignItems: 'center', justifyContent: 'center' },
+  lobbyBtnText:{ color: '#fff', fontSize: 15, fontWeight: '700', textTransform: 'lowercase', letterSpacing: 0.4 },
+  lobbyHint:   { fontSize: 11, color: TC.gold, textTransform: 'lowercase', textAlign: 'center', marginTop: 18, letterSpacing: 0.5 },
+  lobbyResend: { fontSize: 12, color: TC.accentSoft, textTransform: 'lowercase', letterSpacing: 0.5 },
+  waitDots:    { flexDirection: 'row', gap: 8, marginTop: 16 },
 
   // Live partner score banner (head-to-head overlay)
   livePartnerBanner: { position: 'absolute', top: Platform.OS === 'ios' ? 92 : 76, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.6)', borderWidth: 1, borderColor: 'rgba(244,114,182,0.4)', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 100, zIndex: 5 },

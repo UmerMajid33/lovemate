@@ -25,7 +25,8 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      ["expo-image-picker", { "photosPermission": "LoveMate needs photo access so you can attach pictures to your couple diary." }]
     ],
     "extra": {
       "eas": {

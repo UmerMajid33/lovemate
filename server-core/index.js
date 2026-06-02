@@ -22,7 +22,7 @@ dotenv.config();
 const app = express();
 
 app.use(cors());
-app.use(express.json()); 
+app.use(express.json({ limit: '8mb' })); // allow compressed diary images (base64)
 
 // Lightweight wake/health check (no DB) — the app pings this on boot so it can
 // show a loader while a cold Render instance spins up.

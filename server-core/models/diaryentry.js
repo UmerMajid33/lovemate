@@ -8,6 +8,7 @@ const diaryschema = new mongoose.Schema({
   mood:       { type: String, default: '📖' },   // small emoji marking the memory
   title:      { type: String, default: '' },
   text:       { type: String, required: true },
+  image:      { type: String, default: '' },   // compressed JPEG data-URL, kept forever
   createdat:  { type: Date, default: Date.now },
 });
 

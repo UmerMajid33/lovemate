@@ -14,6 +14,7 @@ import Svg, {
 import { getUser, setLoggedIn } from '../utils/storage';
 import { useGoogleAuth, GOOGLE_READY, completeGoogleProfile } from '../utils/googleAuth';
 import GoogleProfileSetup from './GoogleProfileSetup';
+import ForgotPassword from './ForgotPassword';
 
 const { width, height } = Dimensions.get('window');
 
@@ -327,6 +328,7 @@ export default function Login({ onNavigate }) {
   const [loading,  setLoading]  = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [googleSetup, setGoogleSetup] = useState(null);
+  const [showForgot, setShowForgot] = useState(false);
   const [errors,   setErrors]   = useState({});
 
   // Google SSO Handler
@@ -513,7 +515,7 @@ export default function Login({ onNavigate }) {
               delay={280} error={errors.password}
             />
 
-            <TouchableOpacity style={styles.forgotRow} activeOpacity={0.6}>
+            <TouchableOpacity style={styles.forgotRow} activeOpacity={0.6} onPress={() => setShowForgot(true)}>
               <Text style={styles.forgotText}>forgot password?</Text>
             </TouchableOpacity>
 
@@ -578,6 +580,12 @@ export default function Login({ onNavigate }) {
         defaultName={googleSetup?.name || ''}
         onComplete={handleGoogleComplete}
         onCancel={() => setGoogleSetup(null)}
+      />
+
+      <ForgotPassword
+        visible={showForgot}
+        initialEmail={email}
+        onClose={() => setShowForgot(false)}
       />
     </SafeAreaView>
   );

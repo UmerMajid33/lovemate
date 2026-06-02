@@ -12,9 +12,17 @@ const RACE_MS = 20000;       // race length
 const RACE_COUNTDOWN = 3000; // countdown once both partners are in
 const FC_WIN = 150, FC_LOSE = 50, FC_TIE = 100;
 
-// FC reward for finishing one mini-game (base + small skill bonus, capped)
-function fcForGame(score) {
-  return 40 + Math.min(Math.round((Number(score) || 0) / 4), 110); // 40–150 FC
+// FC reward scales with the score — no flat handout. Different games report on
+// different scales (some in hundreds), so normalize per game type. Capped at 200,
+// and 0 score earns 0.
+const FC_DIV = {
+  goal: 12, balloon: 12, pattern: 12, emoji: 12, memory: 12, stack: 12, // score in ×100s
+  racer: 2.5, race: 2.5, reaction: 1, bounce: 1.6, cupid: 2.2, neon: 2.5, tug: 2.5,
+};
+function fcForGame(score, gametype) {
+  const s = Math.max(0, Number(score) || 0);
+  const div = FC_DIV[gametype] || 4;
+  return Math.min(200, Math.round(s / div)); // proportional, 0–200 FC
 }
 
 async function creditWallet(linkcode, role, name, amount, description) {
@@ -492,7 +500,7 @@ router.post('/earn', async (req, res) => {
   const { linkcode, role, name, gametype, score } = req.body;
   if (!linkcode || !role) return res.status(400).json({ error: 'missing fields' });
   try {
-    const fc = fcForGame(score);
+    const fc = fcForGame(score, gametype);
     await creditWallet(linkcode.toLowerCase(), role, name || '', fc, `${gametype || 'mini'} game`);
     const w = await wallet.findOne({ linkcode: linkcode.toLowerCase(), role }).lean();
     res.status(200).json({ fcEarned: fc, balance: w ? w.balance : fc });

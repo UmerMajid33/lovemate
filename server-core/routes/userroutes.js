@@ -57,6 +57,34 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
+// POST /api/user/reset-password — verify the OTP, then set a new password.
+router.post('/reset-password', async (req, res) => {
+  const { email, code, password } = req.body;
+  if (!email || !code || !password) return res.status(400).json({ error: 'email, code and new password are required' });
+  if (String(password).length < 6)  return res.status(400).json({ error: 'password must be at least 6 characters' });
+  const em = email.toLowerCase();
+  try {
+    const founduser = await user.findOne({ email: em });
+    if (!founduser) return res.status(404).json({ error: 'no account with this email' });
+
+    const rec = await otp.findOne({ email: em });
+    if (!rec)                       return res.status(400).json({ error: 'no code found — request a new one' });
+    if (rec.expiresat < new Date()) return res.status(400).json({ error: 'code expired — request a new one' });
+    if (rec.attempts >= 5)          return res.status(400).json({ error: 'too many attempts — request a new code' });
+    if (rec.code !== code) {
+      rec.attempts += 1; await rec.save();
+      return res.status(400).json({ error: 'incorrect code' });
+    }
+
+    founduser.password = await bcrypt.hash(password, 10);
+    await founduser.save();
+    await otp.deleteOne({ email: em });
+    res.status(200).json({ ok: true, message: 'password updated' });
+  } catch (error) {
+    res.status(500).json({ error: 'failed to reset password' });
+  }
+});
+
 // 1. REGISTRATION ROUTE (Sign Up)
 router.post('/register', async (req, res) => {
   const { name, email, password } = req.body;
