@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+**/node_modules/
+
+# python venv / caches
+venv/
+**/venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyd
+
+# secrets — never commit
+.env
+**/.env
+*.env.local
+
+# expo / build
+.expo/
+**/.expo/
+dist/
+web-build/
+*.apk
+*.aab
+
+# misc
+.DS_Store
+npm-debug.log*
