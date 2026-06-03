@@ -290,7 +290,7 @@ function RaceLane({ label, labelColor, progressAnim, scrollY, car, leading }) {
 
 function TapRacer({ onComplete, solo = false, partnerName, onScore }) {
   const DURATION = 20;
-  const RACE_TAPS = 50; // taps to drive your car to the finish line
+  const RACE_TAPS = 60; // taps to drive your car to the finish line (gradual)
   const [taps, setTaps]     = useState(0);
   const [timeLeft, setTime] = useState(DURATION);
   const [countdown, setCountdown] = useState(3);
@@ -329,14 +329,15 @@ function TapRacer({ onComplete, solo = false, partnerName, onScore }) {
     if (endedRef.current) return;
     endedRef.current = true;
     clearInterval(timerRef.current); clearInterval(rivalIntRef.current); clearInterval(roadIntRef.current);
-    setTimeout(() => onComplete(tapsRef.current), 400);
+    setTimeout(() => onComplete?.(tapsRef.current), 600);
   };
 
   const startRace = () => {
-    // Road scroll is tap-reactive: speed surges on each gas tap, decays when idle.
+    // Road scrolls fast right after a tap, eases down to a slow idle when you stop —
+    // so tapping clearly = speed, idle = the road slows.
     roadIntRef.current = setInterval(() => {
       if (!aliveRef.current) return;
-      roadSpeedRef.current = Math.max(8, roadSpeedRef.current - 1.6);
+      roadSpeedRef.current = Math.max(2, roadSpeedRef.current - 2.2);
       scrollPosRef.current = (scrollPosRef.current + roadSpeedRef.current) % 36;
       scrollY.setValue(scrollPosRef.current);
     }, 33);
@@ -363,10 +364,10 @@ function TapRacer({ onComplete, solo = false, partnerName, onScore }) {
     if (countdown > 0 || endedRef.current) return;
     tapsRef.current++; setTaps(tapsRef.current); onScore?.(tapsRef.current);
     const p = Math.min(1, tapsRef.current / RACE_TAPS);
-    // timing (not spring) → never overshoots past 1, keeps the car-rise clamp clean
-    Animated.timing(youProg, { toValue: p, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-    roadSpeedRef.current = Math.min(46, roadSpeedRef.current + 7);
-    if (tapsRef.current >= RACE_TAPS) finish(); // reached the finish line → win early
+    // smooth glide forward (never overshoots past the finish)
+    Animated.timing(youProg, { toValue: p, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    roadSpeedRef.current = Math.min(54, roadSpeedRef.current + 10);
+    if (tapsRef.current >= RACE_TAPS) finish(); // crossed the finish line → win
   };
 
   const timeColor = timeLeft > 7 ? '#22c55e' : '#ef4444';
