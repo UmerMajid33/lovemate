@@ -10,6 +10,7 @@ import Matter from 'matter-js';
 import { API_BASE } from '../utils/api.js';
 import { colors as TC, fonts as TF } from '../theme/theme.js';
 import SpaceBackground from '../theme/SpaceBackground.js';
+import ReactionRush3D from '../components/games3d/ReactionRush3D.js';
 
 const { width, height } = Dimensions.get('window');
 
@@ -34,7 +35,6 @@ const GAMES = [
   { id: 'balloon',  label: 'balloon pop',    time: '25 sec',   desc: 'pop every balloon before it escapes',   color: '#f472b6', dark: '#7b1460', bg: ['#120208','#1e0410','#120208'], grad: ['#fbb6e8','#f472b6','#be185d'] },
   { id: 'memory',   label: 'memory match',   time: '2 min',    desc: 'flip cards and find every love pair',   color: '#a78bfa', dark: '#3b0764', bg: ['#06031a','#0e0730','#06031a'], grad: ['#c4b5fd','#a78bfa','#6d28d9'] },
   { id: 'pattern',  label: 'pattern master', time: '∞ levels', desc: 'watch, remember, repeat — then beat',   color: '#fbbf24', dark: '#7c4b00', bg: ['#0e0a00','#1c1200','#0e0a00'], grad: ['#fde68a','#fbbf24','#b45309'] },
-  { id: 'emoji',    label: 'emoji blitz',    time: '60 sec',   desc: 'decode 10 emoji combos in 60 seconds',  color: '#38bdf8', dark: '#0c4a6e', bg: ['#020b18','#041528','#020b18'], grad: ['#7dd3fc','#38bdf8','#0284c7'] },
   { id: 'bounce',   label: 'bounce blitz',   time: '40 sec',   desc: 'real physics — tap to keep the heart up', color: '#ff4d6d', dark: '#7b0020', bg: ['#160009','#2d0012','#160009'], grad: ['#ff9ec7','#ff4d6d','#a30030'] },
 ];
 
@@ -62,20 +62,6 @@ function FcChip({ amount }) {
     </View>
   );
 }
-
-// ─── Emoji quiz ───────────────────────────────────────────────────────────────
-const BLITZ_Q = [
-  { q:'🌙 + 💫', opts:['dreaming of us','night sky','shooting star','moonlit wish'], a:0 },
-  { q:'🔥 + ❤️', opts:['burning love','fire heart','hot mess','fierce loyalty'],    a:0 },
-  { q:'🌹 + 💌', opts:['love letter','flower mail','send roses','garden poem'],      a:0 },
-  { q:'🦋 + 🌸', opts:['spring flutter','bloom dance','new love feeling','wings'],  a:2 },
-  { q:'💍 + ✨', opts:['sparkle ring','forever promise','diamond shine','glow'],    a:1 },
-  { q:'🌙 + 🤍', opts:['quiet love','pale moonlight','soft night','moon heart'],    a:0 },
-  { q:'⭐ + 👀', opts:['star gazing','wish on you','you are my star','star eyes'],  a:2 },
-  { q:'🏠 + 💞', opts:['home is love','our house','love at home','sweet home'],     a:0 },
-  { q:'🎵 + 💕', opts:['love song','heart music','our melody','dancing hearts'],    a:2 },
-  { q:'☀️ + 🌙', opts:['day and night','always','opposites attract','morning till midnight'], a:1 },
-];
 
 // ─── HUD bar ──────────────────────────────────────────────────────────────────
 function GameHud({ left, mid, right, timeLeft, totalTime, timeColor = '#22c55e' }) {
@@ -889,101 +875,6 @@ function PatternMatch({ targetScore, onComplete, onScore }) {
   );
 }
 
-// ─── GAME 7: Emoji Blitz ──────────────────────────────────────────────────────
-function EmojiBlitz({ targetScore, onComplete, onScore }) {
-  const [qIdx, setQ]      = useState(0);
-  const [score, setScore] = useState(0);
-  const [sel, setSel]     = useState(null);
-  const [timeLeft, setTime] = useState(60);
-  const ref = useRef(0); const timerRef = useRef();
-  const cardAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    timerRef.current = setInterval(() => setTime(t => {
-      if (t <= 1) { clearInterval(timerRef.current); setTimeout(() => onComplete(ref.current * 100), 300); return 0; }
-      return t - 1;
-    }), 1000);
-    Animated.spring(cardAnim, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }).start();
-    return () => clearInterval(timerRef.current);
-  }, []);
-
-  useEffect(() => {
-    cardAnim.setValue(0);
-    Animated.spring(cardAnim, { toValue: 1, tension: 80, friction: 7, useNativeDriver: true }).start();
-  }, [qIdx]);
-
-  const pick = (idx) => {
-    if (sel !== null) return;
-    setSel(idx);
-    if (idx === BLITZ_Q[qIdx].a) { ref.current++; setScore(ref.current); onScore?.(ref.current); }
-    setTimeout(() => {
-      if (qIdx + 1 >= BLITZ_Q.length) { clearInterval(timerRef.current); onComplete(ref.current * 100 + timeLeft * 2); }
-      else { setQ(i => i + 1); setSel(null); }
-    }, 750);
-  };
-
-  const q = BLITZ_Q[qIdx];
-  const timeColor = timeLeft > 15 ? '#38bdf8' : '#ef4444';
-  const cardScale = cardAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] });
-
-  return (
-    <View style={{ flex: 1 }}>
-      <LinearGradient colors={['#020b18','#041528','#020b18']} style={StyleSheet.absoluteFill} />
-      <GameHud
-        left={{ label: 'correct', value: `${score}/${BLITZ_Q.length}`, color: '#7dd3fc' }}
-        right={{ label: 'time', value: `${timeLeft}s`, color: timeColor }}
-        timeLeft={timeLeft} totalTime={60} timeColor={timeColor}
-      />
-      <View style={{ flex: 1, paddingHorizontal: 22, paddingTop: 8, justifyContent: 'center' }}>
-        <Animated.View style={{ transform: [{ scale: cardScale }], opacity: cardAnim }}>
-          <View style={{ shadowColor: '#38bdf8', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.3, shadowRadius: 30 }}>
-            <LinearGradient colors={['rgba(56,189,248,0.12)','rgba(56,189,248,0.04)','rgba(0,0,0,0)']}
-              style={{ borderRadius: 24, borderWidth: 1.5, borderColor: 'rgba(56,189,248,0.2)', padding: 28, alignItems: 'center', marginBottom: 20 }}>
-              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 50, backgroundColor: 'rgba(255,255,255,0.03)', borderTopLeftRadius: 24, borderTopRightRadius: 24 }} />
-              <Text style={{ fontSize: 10, color: 'rgba(56,189,248,0.5)', textTransform: 'lowercase', letterSpacing: 3, marginBottom: 16 }}>
-                {qIdx + 1} of {BLITZ_Q.length}
-              </Text>
-              <Text style={{ fontSize: 52 }}>{q.q}</Text>
-              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 12, textTransform: 'lowercase', letterSpacing: 1 }}>what does this mean?</Text>
-            </LinearGradient>
-          </View>
-        </Animated.View>
-        <View style={{ gap: 10 }}>
-          {q.opts.map((opt, idx) => {
-            let topColor = 'rgba(255,255,255,0.07)';
-            let botColor = 'rgba(255,255,255,0.02)';
-            let border   = 'rgba(255,255,255,0.1)';
-            let textCol  = 'rgba(255,255,255,0.6)';
-            if (sel !== null) {
-              if (idx === q.a)         { topColor = 'rgba(34,197,94,0.25)'; botColor = 'rgba(34,197,94,0.1)'; border = '#22c55e'; textCol = '#86efac'; }
-              else if (idx === sel)    { topColor = 'rgba(239,68,68,0.25)'; botColor = 'rgba(239,68,68,0.1)'; border = '#ef4444'; textCol = '#fca5a5'; }
-            }
-            return (
-              <TouchableOpacity key={idx} onPress={() => pick(idx)} disabled={sel !== null} activeOpacity={0.75}>
-                <View style={{
-                  shadowColor: idx === q.a && sel !== null ? '#22c55e' : idx === sel && sel !== null ? '#ef4444' : 'transparent',
-                  shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 12,
-                }}>
-                  <LinearGradient colors={[topColor, botColor]}
-                    style={[st.emojiOpt, { borderColor: border }]}>
-                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, backgroundColor: 'rgba(255,255,255,0.04)', borderTopLeftRadius: 15, borderTopRightRadius: 15 }} />
-                    <View style={[st.optLetter, { borderColor: border }]}>
-                      <Text style={{ fontSize: 9, color: textCol, fontWeight: '800' }}>{String.fromCharCode(65 + idx)}</Text>
-                    </View>
-                    <Text style={{ fontSize: 14, color: textCol, fontWeight: '600', textTransform: 'lowercase', flex: 1 }}>{opt}</Text>
-                    {sel !== null && idx === q.a && <Text style={{ fontSize: 16 }}>✓</Text>}
-                    {sel !== null && idx === sel && idx !== q.a && <Text style={{ fontSize: 16 }}>✗</Text>}
-                  </LinearGradient>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-    </View>
-  );
-}
-
 // ─── GAME: Bounce Blitz — real physics (matter-js) heart juggle ───────────────
 // Drives matter-js with a manual requestAnimationFrame loop (no game-engine dep).
 const BB_R = 30;                 // ball radius
@@ -1461,8 +1352,8 @@ function StackMemories({ onComplete, onScore }) {
 }
 
 const GAME_COMPONENTS = {
-  reaction: ReactionRush, racer: TapRacer, race: TapRacer, goal: GoalRush,
-  balloon: BalloonPop, memory: MemoryMatch, pattern: PatternMatch, emoji: EmojiBlitz,
+  reaction: ReactionRush3D, racer: TapRacer, race: TapRacer, goal: GoalRush,
+  balloon: BalloonPop, memory: MemoryMatch, pattern: PatternMatch,
   bounce: BounceBlitz, cupid: CupidArrow, stack: StackMemories,
 };
 
@@ -2860,7 +2751,6 @@ const MENU_GAMES = [
   { id: 'bounce',   label: 'bounce blitz',    emoji: '❤️', color: '#ff4d6d', solo: true,  tag: 'physics',      desc: 'keep the heart bouncing, don\'t let it drop.',  stat: '60 sec' },
   { id: 'reaction', label: 'reaction rush',   emoji: '💗', color: '#ff6b8a', solo: true,  tag: 'fast',         desc: 'tap the instant it lights up.',                 stat: '5 rounds' },
   { id: 'balloon',  label: 'balloon pop',     emoji: '🎈', color: '#f472b6', solo: true,  tag: 'pop',          desc: 'pop every balloon before it escapes.',          stat: '25 sec' },
-  { id: 'emoji',    label: 'emoji blitz',     emoji: '😎', color: '#38bdf8', solo: true,  tag: 'decode',       desc: 'decode the emoji clue before time runs out.',   stat: '30 sec' },
   { id: 'memory',   label: 'memory match',    emoji: '🃏', color: '#a78bfa', solo: true,  tag: 'solo',         desc: 'flip cards and find every love pair.',          stat: '2 min' },
   { id: 'pattern',  label: 'pattern master',  emoji: '🎨', color: '#fbbf24', solo: true,  tag: 'solo',         desc: 'watch, remember, repeat — then beat.',          stat: '∞ levels' },
 ];
@@ -3170,7 +3060,7 @@ function hashStr(s) {
 
 // Deterministic shuffle of game ids from the shared bond code, so BOTH partners
 // compute the identical random order and always land on the same game together.
-const MP_GAMES = ['crash', 'neon', 'race', 'tug', 'goal', 'bounce', 'reaction', 'balloon', 'emoji'];
+const MP_GAMES = ['crash', 'neon', 'race', 'tug', 'goal', 'bounce', 'reaction', 'balloon'];
 function seededOrder(linkCode, page) {
   let s = page * 2654435761 >>> 0;
   for (const ch of String(linkCode || 'x')) s = (s * 31 + ch.charCodeAt(0)) >>> 0;
