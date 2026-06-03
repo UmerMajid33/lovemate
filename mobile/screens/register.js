@@ -718,7 +718,7 @@ export default function Register({ onNavigate }) {
                 {errors.gender && <Text style={[styles.errorText, { marginTop: -10, marginBottom: 12 }]}>{errors.gender}</Text>}
 
                 <View style={{ height: 8 }} />
-                <ShimmerButton label="get started →" onPress={handleSubmit} disabled={!isReady} loading={loading} />
+                <ShimmerButton label="get started →" onPress={handleSubmit} disabled={loading} loading={loading} />
 
                 {Platform.OS !== 'ios' && (
                   <>

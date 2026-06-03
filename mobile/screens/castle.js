@@ -1810,7 +1810,7 @@ export default function Castle({ onNavigate, params = {} }) {
       {sparkles.map((s, i) => <Sparkle key={i} {...s} />)}
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} bounces>
-        <Animated.View style={{ width: '100%', alignItems: 'center', opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+        <Animated.View style={{ width: '100%', alignItems: 'center', opacity: 1, transform: [{ translateY: slideAnim }] }}>
 
           {/* Top nav */}
           <View style={styles.topNav}>

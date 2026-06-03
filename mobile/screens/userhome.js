@@ -919,7 +919,7 @@ export default function UserHome({ onNavigate, user = { name: 'mate', gender: 'u
 
         {/* ── SELECTION ──────────────────────────────────────────────────── */}
         {mode === 'selection' && (
-          <Animated.View style={{ width: '100%', alignItems: 'center', opacity: fadeAnim, transform: [{ translateY: slideAnim }, { scale: scaleAnim }] }}>
+          <Animated.View style={{ width: '100%', alignItems: 'center', opacity: 1, transform: [{ translateY: slideAnim }, { scale: scaleAnim }] }}>
 
             {/* Header */}
             <View style={styles.selectionHeader}>
@@ -1071,7 +1071,7 @@ export default function UserHome({ onNavigate, user = { name: 'mate', gender: 'u
 
         {/* ── BUILD ──────────────────────────────────────────────────────── */}
         {mode === 'build' && (
-          <Animated.View style={{ width: '100%', opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+          <Animated.View style={{ width: '100%', opacity: 1, transform: [{ translateY: slideAnim }] }}>
 
             <View style={styles.modeNav}>
               <TouchableOpacity onPress={() => { setMode('selection'); setGeneratedCode(''); setHomeName(''); }} style={styles.backBtn}>
@@ -1154,7 +1154,7 @@ export default function UserHome({ onNavigate, user = { name: 'mate', gender: 'u
 
         {/* ── JOIN ───────────────────────────────────────────────────────── */}
         {mode === 'join' && (
-          <Animated.View style={{ width: '100%', opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+          <Animated.View style={{ width: '100%', opacity: 1, transform: [{ translateY: slideAnim }] }}>
 
             <View style={styles.modeNav}>
               <TouchableOpacity onPress={() => { setMode('selection'); setJoinError(''); setInviteCode(''); }} style={styles.backBtn}>
