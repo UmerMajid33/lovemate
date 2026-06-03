@@ -368,17 +368,22 @@ function ProductImage({ itemId, color, size = 90 }) {
     stamp_love: renderStamp,
   };
 
-  const Render = renders[itemId];
+  // Clean emoji tile — reliable on every platform (the SVG art collided on
+  // duplicate gradient ids and rendered blank on Android).
+  const EMOJI = {
+    gift_rose: '🌹', gift_chocolate: '🍫', gift_star: '⭐', gift_balloon: '🎈',
+    gift_teddy: '🧸', gift_diamond: '💎', badge_flame: '🔥', badge_crown: '👑',
+    badge_lucky: '🍀', stamp_love: '❤️',
+  };
+  void renders;
   return (
-    <View style={st.pedestalCanvasInner}>
-      <LinearGradient colors={[`${color}28`, `${color}06`]} style={st.imgFrameShadow}>
-        {Render ? Render() : (
-          <Svg width={size} height={size} viewBox="0 0 100 100">
-            <Circle cx="50" cy="50" r="30" fill="rgba(255,255,255,0.06)" />
-          </Svg>
-        )}
-      </LinearGradient>
-    </View>
+    <LinearGradient
+      colors={[`${color}33`, `${color}12`, 'rgba(10,10,20,0.5)']}
+      start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }}
+      style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: `${color}44` }}
+    >
+      <Text style={{ fontSize: size * 0.48 }}>{EMOJI[itemId] || '🎁'}</Text>
+    </LinearGradient>
   );
 }
 
