@@ -213,7 +213,6 @@ function PrimaryButton({ label, onPress, disabled, icon }) {
 // ─── Code badge ───────────────────────────────────────────────────────────────
 function CodeBadge({ code, onCopy, copied }) {
   const pulse  = useRef(new Animated.Value(1)).current;
-  const border = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!code) return;
@@ -221,21 +220,12 @@ function CodeBadge({ code, onCopy, copied }) {
       Animated.timing(pulse, { toValue: 1.06, duration: 180, useNativeDriver: true }),
       Animated.spring(pulse,  { toValue: 1,   useNativeDriver: true }),
     ]).start();
-    Animated.loop(Animated.sequence([
-      Animated.timing(border, { toValue: 1, duration: 1200, useNativeDriver: false }),
-      Animated.timing(border, { toValue: 0, duration: 1200, useNativeDriver: false }),
-    ])).start();
   }, [code]);
 
   if (!code) return null;
 
-  const borderColor = border.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['rgba(224,80,110,0.25)', 'rgba(224,80,110,0.7)'],
-  });
-
   return (
-    <Animated.View style={[styles.codeBadge, { borderColor, transform: [{ scale: pulse }] }]}>
+    <Animated.View style={[styles.codeBadge, { borderColor: 'rgba(224,80,110,0.5)', transform: [{ scale: pulse }] }]}>
       <View style={{ flex: 1 }}>
         <Text style={styles.codeLabel}>bond code</Text>
         <Text style={styles.codeValue}>{code}</Text>
@@ -297,7 +287,7 @@ function ExistingHomeCard({ home, onEnter, leaveState, onRequestLeave, onCancelL
   }, []);
 
   const handleCopy = () => {
-    Clipboard.setString(home.linkCode);
+    try { Clipboard?.setString?.(home.linkCode); } catch (_) {}
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
@@ -709,7 +699,7 @@ export default function UserHome({ onNavigate, user = { name: 'mate', gender: 'u
 
   const handleCopy = () => {
     if (!generatedCode) return;
-    Clipboard.setString(generatedCode);
+    try { Clipboard?.setString?.(generatedCode); } catch (_) {}
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };

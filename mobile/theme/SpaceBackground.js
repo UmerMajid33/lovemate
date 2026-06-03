@@ -9,7 +9,7 @@ const { width, height } = Dimensions.get('window');
 const CX = width / 2;
 const CY = height / 2;
 
-const NUM    = 70;   // kept moderate so 100+ looping star animations don't jank on phones
+const NUM    = 38;   // light enough that the looping star animations don't jank scrolling on phones
 const DEPTH  = 900;
 const FOCAL  = 320;
 const SPREAD = 1.5;

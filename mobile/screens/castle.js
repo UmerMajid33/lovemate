@@ -1910,17 +1910,21 @@ export default function Castle({ onNavigate, params = {} }) {
               const iLead   = myPts >= pPts;
               return (
                 <TouchableOpacity activeOpacity={0.85} onPress={() => onNavigate?.('feed', params)} style={styles.lbCard}>
-                  <Text style={styles.lbTitle}>🏆</Text>
-                  <View style={styles.lbScore}>
-                    <Text style={[styles.lbName, iLead && { color: '#F08FA0' }]} numberOfLines={1}>{user?.name || 'you'}</Text>
-                    <Text style={[styles.lbPts, { color: '#F08FA0' }]}>{myPts}</Text>
+                  <View style={styles.lbHeadRow}>
+                    <Text style={styles.lbTitle}>🏆  challenge score</Text>
+                    <Text style={styles.lbGo}>play →</Text>
                   </View>
-                  <Text style={styles.lbVs}>vs</Text>
-                  <View style={styles.lbScore}>
-                    <Text style={[styles.lbPts, { color: '#c4b5fd' }]}>{pPts}</Text>
-                    <Text style={[styles.lbName, (!iLead && pPts > 0) && { color: '#c4b5fd' }]} numberOfLines={1}>{partnerName}</Text>
+                  <View style={styles.lbRow}>
+                    <View style={[styles.lbSide, iLead && styles.lbSideLead]}>
+                      <Text style={[styles.lbPts, { color: '#F08FA0' }]}>{myPts}</Text>
+                      <Text style={styles.lbName} numberOfLines={1}>{user?.name || 'you'}</Text>
+                    </View>
+                    <Text style={styles.lbVs}>vs</Text>
+                    <View style={[styles.lbSide, (!iLead && pPts > 0) && styles.lbSideLead]}>
+                      <Text style={[styles.lbPts, { color: '#c4b5fd' }]}>{pPts}</Text>
+                      <Text style={styles.lbName} numberOfLines={1}>{partnerName}</Text>
+                    </View>
                   </View>
-                  <Text style={styles.lbGo}>→</Text>
                 </TouchableOpacity>
               );
             })()}
@@ -2283,19 +2287,21 @@ const styles = StyleSheet.create({
     textTransform: 'lowercase', textAlign: 'center', marginTop: 6, maxWidth: 76,
   },
 
-  // challenge leaderboard (hero) — compact strip
+  // challenge leaderboard (hero) — clean two-sided card
   lbCard: {
-    flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: 8,
-    marginTop: 14, paddingVertical: 7, paddingHorizontal: 14,
+    width: '100%', marginTop: 16, padding: 14,
     backgroundColor: 'rgba(255,255,255,0.035)',
-    borderWidth: 1, borderColor: 'rgba(224,147,159,0.18)', borderRadius: 100,
+    borderWidth: 1, borderColor: 'rgba(224,80,110,0.2)', borderRadius: 20,
   },
-  lbTitle: { fontSize: 13 },
-  lbScore: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  lbName: { fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: '700', textTransform: 'lowercase', maxWidth: 60 },
-  lbPts: { fontSize: 15, fontWeight: '900', letterSpacing: -0.3 },
-  lbVs: { fontSize: 9, color: 'rgba(255,255,255,0.3)', fontWeight: '900', textTransform: 'uppercase' },
-  lbGo: { fontSize: 13, color: '#F08FA0', fontWeight: '900', marginLeft: 2 },
+  lbHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  lbTitle: { fontSize: 11, color: 'rgba(242,237,228,0.6)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.5 },
+  lbGo: { fontSize: 11, color: '#F08FA0', fontWeight: '800', textTransform: 'lowercase' },
+  lbRow: { flexDirection: 'row', alignItems: 'center' },
+  lbSide: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 14, borderWidth: 1, borderColor: 'transparent' },
+  lbSideLead: { backgroundColor: 'rgba(224,80,110,0.08)', borderColor: 'rgba(224,80,110,0.25)' },
+  lbName: { fontSize: 12, color: 'rgba(242,237,228,0.55)', fontWeight: '600', textTransform: 'lowercase', marginTop: 3, maxWidth: 120 },
+  lbPts: { fontFamily: TF.serif, fontSize: 26, letterSpacing: -0.5 },
+  lbVs: { fontSize: 10, color: 'rgba(242,237,228,0.3)', fontWeight: '900', textTransform: 'uppercase', marginHorizontal: 12 },
 
   // feature card
   featureCard: {
