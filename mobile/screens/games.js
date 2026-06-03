@@ -2736,11 +2736,108 @@ function renderMpGame(gameId, common) {
   if (gameId === 'race')  return <MultiplayerRace {...common} />;
   if (gameId === 'tug')   return <TugOfWar {...common} />;
   if (gameId === 'goal')  return <GoalDuel {...common} />;
+  if (gameId === 'xo')    return <TicTacToe {...common} />;
   return <LiveScoreMatch gameId={gameId} GameComp={GAME_COMPONENTS[gameId]} {...common} />;
+}
+
+// ─── Tic-Tac-Toe — turn-based, server-synced (creator = X, joiner = O) ────────
+function TicTacToe({ linkCode, role, user, partnerName, onExit }) {
+  const [game, setGame] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const pollRef = useRef(null);
+  const myMark = role === 'creator' ? 'X' : 'O';
+  const pRole  = role === 'creator' ? 'joiner' : 'creator';
+
+  const refresh = async () => { const d = await gGet(`/api/xo/${linkCode}`); if (d?.game) setGame(d.game); };
+  useEffect(() => {
+    refresh();
+    pollRef.current = setInterval(refresh, 1500);
+    return () => clearInterval(pollRef.current);
+  }, [linkCode]);
+
+  const myTurn = game && !game.winner && game.turn === role;
+
+  const place = async (i) => {
+    if (!myTurn || busy || game.board[i]) return;
+    setBusy(true);
+    // optimistic
+    setGame(g => { const b = [...g.board]; b[i] = myMark; return { ...g, board: b, turn: pRole }; });
+    const d = await gPost('/api/xo/move', { linkcode: linkCode, role, cell: i });
+    if (d?.game) setGame(d.game);
+    setBusy(false);
+  };
+  const newGame = async () => { const d = await gPost('/api/xo/reset', { linkcode: linkCode }); if (d?.game) setGame(d.game); };
+
+  const winsMe = game?.wins?.[role] || 0;
+  const winsP  = game?.wins?.[pRole] || 0;
+  const status = !game ? 'loading…'
+    : game.winner === 'draw' ? "it's a draw"
+    : game.winner === role   ? 'you win! 🎉'
+    : game.winner === pRole  ? `${partnerName || 'partner'} wins`
+    : myTurn ? 'your move' : `waiting for ${partnerName || 'partner'}…`;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: TC.bg }}>
+      <StatusBar barStyle="light-content" backgroundColor={TC.bg} />
+      <SpaceBackground />
+
+      <View style={xo.header}>
+        <TouchableOpacity onPress={onExit} style={xo.iconBtn}><Text style={xo.iconTxt}>←</Text></TouchableOpacity>
+        <Text style={xo.title}>tic tac toe</Text>
+        <View style={{ width: 44 }} />
+      </View>
+
+      {/* score */}
+      <View style={xo.scoreRow}>
+        <View style={[xo.scoreSide, role === 'creator' ? xo.youSide : null]}>
+          <Text style={xo.scoreMark}>✕</Text>
+          <Text style={xo.scoreName} numberOfLines={1}>{role === 'creator' ? (user?.name || 'you') : partnerName}</Text>
+          <Text style={xo.scoreVal}>{game?.wins?.creator || 0}</Text>
+        </View>
+        <Text style={xo.scoreVs}>vs</Text>
+        <View style={[xo.scoreSide, role === 'joiner' ? xo.youSide : null]}>
+          <Text style={[xo.scoreMark, { color: TC.slate }]}>◯</Text>
+          <Text style={xo.scoreName} numberOfLines={1}>{role === 'joiner' ? (user?.name || 'you') : partnerName}</Text>
+          <Text style={xo.scoreVal}>{game?.wins?.joiner || 0}</Text>
+        </View>
+      </View>
+
+      <Text style={[xo.status, myTurn && { color: TC.accentSoft }]}>{status}</Text>
+
+      {/* board */}
+      <View style={xo.board}>
+        {Array.from({ length: 9 }).map((_, i) => {
+          const v = game?.board?.[i] || '';
+          const winCell = game?.line?.includes(i);
+          return (
+            <TouchableOpacity key={i} activeOpacity={0.8} onPress={() => place(i)}
+              style={[xo.cell, winCell && xo.cellWin, (i % 3 !== 2) && xo.cellRight, (i < 6) && xo.cellBottom]}>
+              <Text style={[xo.mark, { color: v === 'X' ? TC.accentSoft : TC.slate }, winCell && { color: '#86efac' }]}>
+                {v === 'X' ? '✕' : v === 'O' ? '◯' : ''}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* actions */}
+      <View style={{ alignItems: 'center', marginTop: 28, gap: 12 }}>
+        {game?.winner && (
+          <TouchableOpacity onPress={newGame} activeOpacity={0.9} style={xo.btnWrap}>
+            <LinearGradient colors={['#EC7186', TC.accent, '#B23E54']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={xo.btn}>
+              <Text style={xo.btnTxt}>play again</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity onPress={onExit}><Text style={xo.exit}>back to games</Text></TouchableOpacity>
+      </View>
+    </View>
+  );
 }
 
 // ─── Non-scrolling game menu: pick a game → play solo or invite partner ───────
 const MENU_GAMES = [
+  { id: 'xo',       label: 'tic tac toe',     emoji: '⭕', color: '#22d3ee', solo: false, tag: 'turn-based',   desc: 'classic x & o — you place x, partner places o.', stat: '2p' },
   { id: 'crash',    label: 'crash & clutch',  emoji: '🎰', color: '#a855f7', solo: false, tag: 'bet & bail',   desc: 'bet fantasy cash. cash out before it crashes.', stat: 'live' },
   { id: 'neon',     label: 'neon tug',        emoji: '🎯', color: '#22d3ee', solo: false, tag: 'mash',         desc: 'mash faster than your partner to win.',         stat: '15 sec' },
   { id: 'race',     label: 'tap race',        emoji: '🏁', color: '#22c55e', solo: true,  tag: 'race',         desc: 'tap like crazy and cross the line first.',      stat: '20 sec' },
@@ -2761,7 +2858,7 @@ function GameMenu({ linkCode, role, user, partnerName, onExit, onArena, autoAcce
   const [gameId, setGameId] = useState(null);
   const [invite, setInvite] = useState(null);   // pending invite from partner { game, fromname }
   const [soloResult, setSoloResult] = useState(null); // { score, fc }
-  const [mode, setMode]   = useState('arena');   // arena | solo | vs — how a tapped game plays
+  const [mode, setMode]   = useState('solo');   // solo | vs — how a tapped game plays
   const [stats, setStats] = useState({ balance: 0, winsToday: 0, streak: 0 });
   const liveScoreRef = useRef(0);
   const soloEndedRef = useRef(false);
@@ -2917,15 +3014,13 @@ function GameMenu({ linkCode, role, user, partnerName, onExit, onArena, autoAcce
 
   // Dispatch a tapped game by the selected mode.
   const playGame = (g) => {
-    if (mode === 'arena')      onArena?.();
-    else if (mode === 'solo')  { if (g.solo) startSolo(g.id); else onArena?.(); }
-    else                       invitePartner(g.id); // vs partner
+    if (mode === 'solo') { if (g.solo) startSolo(g.id); else invitePartner(g.id); }
+    else                 invitePartner(g.id); // vs partner
   };
 
   const MODES = [
-    { id: 'arena', label: 'arena' },
-    { id: 'solo',  label: 'solo' },
-    { id: 'vs',    label: 'vs partner' },
+    { id: 'solo', label: 'solo' },
+    { id: 'vs',   label: 'vs partner' },
   ];
 
   return (
@@ -3346,6 +3441,37 @@ const gd = StyleSheet.create({
   prompt:    { fontSize: 14, color: 'rgba(255,255,255,0.7)', fontWeight: '700', textTransform: 'lowercase', letterSpacing: 0.4 },
   waiting:   { fontSize: 12, color: '#93c5fd', textTransform: 'lowercase', marginTop: 6 },
   zoneBtn:   { height: 52, borderRadius: 16, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+});
+
+// ─── Tic-tac-toe styles ──────────────────────────────────────────────────────
+const XO_CELL = Math.min(96, (width - 80) / 3);
+const xo = StyleSheet.create({
+  header:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 54 : 38, paddingBottom: 6 },
+  iconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: TC.surface, borderWidth: 1, borderColor: TC.hairline, alignItems: 'center', justifyContent: 'center' },
+  iconTxt: { color: TC.text, fontSize: 19, fontWeight: '600', marginTop: -1 },
+  title:   { fontFamily: TF.serif, fontSize: 22, color: TC.text, letterSpacing: -0.3 },
+
+  scoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, marginTop: 18, paddingHorizontal: 20 },
+  scoreSide:{ flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: TC.hairline, backgroundColor: TC.surface },
+  youSide:  { borderColor: TC.accentLine, backgroundColor: TC.accentDim },
+  scoreMark:{ fontSize: 20, color: TC.accentSoft, fontWeight: '900' },
+  scoreName:{ fontSize: 12, color: TC.textSoft, textTransform: 'lowercase', marginTop: 3, maxWidth: 110 },
+  scoreVal: { fontFamily: TF.serif, fontSize: 24, color: TC.text, marginTop: 2 },
+  scoreVs:  { fontSize: 11, color: TC.textMuted, fontWeight: '900', textTransform: 'uppercase' },
+
+  status:   { textAlign: 'center', marginTop: 22, fontSize: 15, color: TC.textSoft, fontWeight: '600', textTransform: 'lowercase' },
+
+  board:    { width: XO_CELL * 3, alignSelf: 'center', marginTop: 22, flexDirection: 'row', flexWrap: 'wrap', borderRadius: 20, overflow: 'hidden', backgroundColor: TC.surface, borderWidth: 1, borderColor: TC.hairline2 },
+  cell:     { width: XO_CELL, height: XO_CELL, alignItems: 'center', justifyContent: 'center' },
+  cellRight:{ borderRightWidth: 1, borderRightColor: TC.hairline2 },
+  cellBottom:{ borderBottomWidth: 1, borderBottomColor: TC.hairline2 },
+  cellWin:  { backgroundColor: 'rgba(127,169,140,0.16)' },
+  mark:     { fontSize: XO_CELL * 0.5, fontWeight: '900' },
+
+  btnWrap:  { borderRadius: 18, overflow: 'hidden', shadowColor: TC.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
+  btn:      { height: 52, paddingHorizontal: 40, alignItems: 'center', justifyContent: 'center' },
+  btnTxt:   { fontSize: 15, fontWeight: '700', color: '#fff', letterSpacing: 0.3 },
+  exit:     { fontSize: 13, color: TC.textMuted, textTransform: 'lowercase' },
 });
 
 // ─── Game menu (game center) styles ──────────────────────────────────────────

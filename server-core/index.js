@@ -16,6 +16,7 @@ import leaveroutes    from './routes/leaveroutes.js';
 import homenoderoutes from './routes/homenoderoutes.js';
 import diaryroutes    from './routes/diaryroutes.js';
 import quizroutes     from './routes/quizroutes.js';
+import xoroutes       from './routes/xoroutes.js';
 
 dotenv.config();
 
@@ -41,6 +42,7 @@ app.use('/api/home',   leaveroutes);
 app.use('/api/home',   homenoderoutes);
 app.use('/api/diary',  diaryroutes);
 app.use('/api/quiz',   quizroutes);
+app.use('/api/xo',     xoroutes);
 
 const PORT = process.env.PORT || 5000;
 
