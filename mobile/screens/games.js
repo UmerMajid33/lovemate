@@ -10,7 +10,9 @@ import Matter from 'matter-js';
 import { API_BASE } from '../utils/api.js';
 import { colors as TC, fonts as TF } from '../theme/theme.js';
 import SpaceBackground from '../theme/SpaceBackground.js';
-import ReactionRush3D from '../components/games3d/ReactionRush3D.js';
+import { GLView } from 'expo-gl';
+import { Renderer } from 'expo-three';
+import * as THREE from 'three';
 
 const { width, height } = Dimensions.get('window');
 
@@ -29,7 +31,6 @@ async function gGet(path) {
 
 // ─── Game catalog ─────────────────────────────────────────────────────────────
 const GAMES = [
-  { id: 'reaction', label: 'reaction rush',  time: '30 sec',   desc: 'tap every heart before it vanishes',    color: '#ff4d6d', dark: '#7b0020', bg: ['#0d0005','#1a000a','#0d0005'], grad: ['#ff9ec7','#ff4d6d','#a30030'] },
   { id: 'racer',    label: 'tap racer',      time: '20 sec',   desc: 'mash the gas — whoever taps more wins', color: '#22c55e', dark: '#064e1e', bg: ['#020d04','#041508','#020d04'], grad: ['#4ade80','#22c55e','#15803d'] },
   { id: 'goal',     label: 'goal rush',      time: '10 shots', desc: 'pick your zone and beat the keeper',    color: '#3b82f6', dark: '#0c2a6b', bg: ['#020810','#040f25','#020810'], grad: ['#93c5fd','#3b82f6','#1d4ed8'] },
   { id: 'balloon',  label: 'balloon pop',    time: '25 sec',   desc: 'pop every balloon before it escapes',   color: '#f472b6', dark: '#7b1460', bg: ['#120208','#1e0410','#120208'], grad: ['#fbb6e8','#f472b6','#be185d'] },
@@ -1352,7 +1353,7 @@ function StackMemories({ onComplete, onScore }) {
 }
 
 const GAME_COMPONENTS = {
-  reaction: ReactionRush3D, racer: TapRacer, race: TapRacer, goal: GoalRush,
+  racer: TapRacer, race: TapRacer, goal: GoalRush,
   balloon: BalloonPop, memory: MemoryMatch, pattern: PatternMatch,
   bounce: BounceBlitz, cupid: CupidArrow, stack: StackMemories,
 };
@@ -2335,6 +2336,86 @@ function LiveScoreMatch({ gameId, GameComp, linkCode, role, user, partnerName, o
 }
 
 // ─── NEW GAME: Crash & Clutch — co-op multiplier, bail before the crash ───────
+// 3D rocket-ascent scene for Crash & Clutch. Reads live multiplier + crash flag
+// from refs; rocket climbs/tilts with multiplier, stars streak down faster as it
+// rises, and it bursts into an expanding shell on crash.
+function crashGL(multRef, crashedRef, aliveRef) {
+  return (gl) => {
+    const renderer = new Renderer({ gl });
+    renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight);
+    renderer.setClearColor(0x06000f, 1);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(62, gl.drawingBufferWidth / gl.drawingBufferHeight, 0.1, 100);
+    camera.position.set(0, 0, 6);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const pl = new THREE.PointLight(0xa855f7, 1.6); pl.position.set(3, 4, 5); scene.add(pl);
+
+    // rocket = cone body + glow core
+    const rocket = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.ConeGeometry(0.5, 1.4, 24),
+      new THREE.MeshStandardMaterial({ color: 0xc4b5fd, emissive: 0x7c3aed, emissiveIntensity: 0.5, metalness: 0.4, roughness: 0.3 })
+    );
+    rocket.add(body);
+    const flame = new THREE.Mesh(
+      new THREE.ConeGeometry(0.28, 0.7, 16),
+      new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
+    );
+    flame.position.y = -1.0; flame.rotation.x = Math.PI; rocket.add(flame);
+    scene.add(rocket);
+
+    // streaking stars
+    const N = 120, g2 = new THREE.BufferGeometry(), p = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) { p[i*3]=(Math.random()-0.5)*14; p[i*3+1]=(Math.random()-0.5)*16; p[i*3+2]=-1-Math.random()*8; }
+    g2.setAttribute('position', new THREE.BufferAttribute(p, 3));
+    const stars = new THREE.Points(g2, new THREE.PointsMaterial({ color: 0xddd6fe, size: 0.05 }));
+    scene.add(stars);
+
+    // explosion shell (hidden until crash)
+    const boom = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 20, 20),
+      new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0 })
+    );
+    scene.add(boom);
+    let boomT = 0;
+
+    let last = Date.now();
+    const render = () => {
+      if (!aliveRef.current) return;
+      requestAnimationFrame(render);
+      const now = Date.now(); const dt = Math.min((now - last) / 1000, 0.05); last = now;
+      const m = multRef.current || 1;
+      const crashed = crashedRef.current;
+
+      // stars rain down, faster with multiplier
+      const arr = g2.attributes.position.array;
+      const spd = (3 + m * 1.2) * dt;
+      for (let i = 0; i < N; i++) { arr[i*3+1] -= spd; if (arr[i*3+1] < -8) arr[i*3+1] = 8; }
+      g2.attributes.position.needsUpdate = true;
+
+      if (!crashed) {
+        rocket.visible = true;
+        rocket.rotation.z = -0.18 + Math.sin(now/300)*0.04;
+        rocket.position.y = Math.min(2.2, (m - 1) * 0.5);
+        rocket.rotation.y += dt * 1.5;
+        flame.scale.y = 1 + Math.sin(now/60)*0.3 + m*0.05;
+        body.material.emissiveIntensity = 0.4 + Math.min(1, m/10);
+      } else {
+        rocket.visible = false;
+        boomT = Math.min(1, boomT + dt * 1.8);
+        const s = 0.5 + boomT * 4;
+        boom.scale.set(s, s, s);
+        boom.material.opacity = (1 - boomT) * 0.9;
+        boom.position.copy(rocket.position);
+      }
+      renderer.render(scene, camera);
+      gl.endFrameEXP();
+    };
+    render();
+  };
+}
+
 function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext }) {
   const partnerField = role === 'creator' ? 'joinerscore' : 'creatorscore';
   const partnerDone  = role === 'creator' ? 'joinerdone'  : 'creatordone';
@@ -2356,6 +2437,8 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext }) {
   const alive     = useRef(true);
   const timers    = useRef({});
   const carY = useRef(new Animated.Value(0)).current;
+  const multRef    = useRef(1);      // current multiplier — read by the 3D loop
+  const crashedRef = useRef(false);  // crash flag — read by the 3D loop
 
   // multiplier as a function of elapsed ms (accelerating, aviator-style)
   const multAt = (ms) => Math.pow(1.06, ms / 240);
@@ -2399,7 +2482,7 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext }) {
       const elapsed = now - localStart;
       if (elapsed >= crashAtRef.current) {
         // CRASH
-        setPhase('flying'); setCrashed(true);
+        setPhase('flying'); setCrashed(true); crashedRef.current = true;
         Object.values(timers.current).forEach(clearInterval);
         Animated.timing(carY, { toValue: 40, duration: 250, useNativeDriver: true }).start();
         finish(myBailRef.current); // lock whatever we had (0 if never bailed)
@@ -2407,7 +2490,7 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext }) {
       }
       setPhase('flying');
       const m = multAt(elapsed);
-      setMult(m);
+      setMult(m); multRef.current = m;
       Animated.timing(carY, { toValue: -Math.min(elapsed / crashAtRef.current, 1) * (height * 0.32), duration: 120, useNativeDriver: true }).start();
     }, 60);
   };
@@ -2521,24 +2604,19 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext }) {
 
   const multColor = crashed ? '#ef4444' : mult < 2 ? '#fff' : mult < 5 ? '#fbbf24' : '#22c55e';
   return (
-    <View style={{ flex: 1 }}>
-      <LinearGradient colors={['#0a0014','#16012a','#0a0014']} style={StyleSheet.absoluteFill} />
+    <View style={{ flex: 1, backgroundColor: '#06000f' }}>
+      <GLView style={StyleSheet.absoluteFill} onContextCreate={crashGL(multRef, crashedRef, alive)} />
       <GameHud
         left={{ label: 'you', value: myBail > 0 ? `${myBail.toFixed(1)}×` : '—', color: '#4ade80' }}
         right={{ label: pName, value: pBail > 0 ? `${pBail.toFixed(1)}×` : '—', color: '#f472b6' }}
       />
 
       {/* big multiplier */}
-      <View style={{ position: 'absolute', top: height * 0.22, left: 0, right: 0, alignItems: 'center' }}>
-        <Text style={{ fontSize: 64, fontWeight: '900', color: multColor, letterSpacing: -2, textShadowColor: multColor, textShadowRadius: 24 }}>
+      <View style={{ position: 'absolute', top: height * 0.18, left: 0, right: 0, alignItems: 'center' }} pointerEvents="none">
+        <Text style={{ fontFamily: TF.serif, fontSize: 68, color: multColor, letterSpacing: -2, textShadowColor: multColor, textShadowRadius: 24 }}>
           {crashed ? 'crash!' : `${mult.toFixed(2)}×`}
         </Text>
       </View>
-
-      {/* climbing rocket-car */}
-      <Animated.View style={{ position: 'absolute', bottom: 230, alignSelf: 'center', transform: [{ translateY: carY }, { rotate: crashed ? '40deg' : '-12deg' }] }}>
-        <Text style={{ fontSize: 54 }}>{crashed ? '💥' : '🏎️'}</Text>
-      </Animated.View>
 
       {/* bail button */}
       <TouchableOpacity onPress={bail} disabled={myBail > 0 || crashed} activeOpacity={0.85} style={{ position: 'absolute', bottom: 56, alignSelf: 'center' }}>
@@ -2846,7 +2924,6 @@ const MENU_GAMES = [
   { id: 'cupid',    label: "cupid's arrow",   emoji: '🏹', color: '#ec4899', solo: true,  tag: 'aim & nerve',  desc: 'steady your aim and hit the heart.',            stat: '5 arrows' },
   { id: 'stack',    label: 'stack memories',  emoji: '🧱', color: '#10b981', solo: true,  tag: 'precision',    desc: 'stack the blocks as high as you can.',          stat: 'endless' },
   { id: 'bounce',   label: 'bounce blitz',    emoji: '❤️', color: '#ff4d6d', solo: true,  tag: 'physics',      desc: 'keep the heart bouncing, don\'t let it drop.',  stat: '60 sec' },
-  { id: 'reaction', label: 'reaction rush',   emoji: '💗', color: '#ff6b8a', solo: true,  tag: 'fast',         desc: 'tap the instant it lights up.',                 stat: '5 rounds' },
   { id: 'balloon',  label: 'balloon pop',     emoji: '🎈', color: '#f472b6', solo: true,  tag: 'pop',          desc: 'pop every balloon before it escapes.',          stat: '25 sec' },
   { id: 'memory',   label: 'memory match',    emoji: '🃏', color: '#a78bfa', solo: true,  tag: 'solo',         desc: 'flip cards and find every love pair.',          stat: '2 min' },
   { id: 'pattern',  label: 'pattern master',  emoji: '🎨', color: '#fbbf24', solo: true,  tag: 'solo',         desc: 'watch, remember, repeat — then beat.',          stat: '∞ levels' },
@@ -2957,7 +3034,7 @@ function GameMenu({ linkCode, role, user, partnerName, onExit, onArena, autoAcce
     const g = MENU_GAMES.find(x => x.id === gameId);
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#080810' }}>
-        <TouchableOpacity onPress={exitFromLobby} style={{ position: 'absolute', top: 28, left: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' }} activeOpacity={0.8}>
+        <TouchableOpacity onPress={backToMenu} style={{ position: 'absolute', top: 28, left: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' }} activeOpacity={0.8}>
           <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 16, fontWeight: '700' }}>←</Text>
         </TouchableOpacity>
         <Text allowFontScaling={false} style={{ fontSize: 44, lineHeight: 48, height: 48 }}>{g?.emoji}</Text>
@@ -3155,7 +3232,7 @@ function hashStr(s) {
 
 // Deterministic shuffle of game ids from the shared bond code, so BOTH partners
 // compute the identical random order and always land on the same game together.
-const MP_GAMES = ['crash', 'neon', 'race', 'tug', 'goal', 'bounce', 'reaction', 'balloon'];
+const MP_GAMES = ['crash', 'neon', 'race', 'tug', 'goal', 'bounce', 'balloon'];
 function seededOrder(linkCode, page) {
   let s = page * 2654435761 >>> 0;
   for (const ch of String(linkCode || 'x')) s = (s * 31 + ch.charCodeAt(0)) >>> 0;
