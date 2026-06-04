@@ -1651,6 +1651,7 @@ function MultiplayerRace({ linkCode, role, user, partnerName, onExit, onNext }) 
   const [pTaps, setPTaps]   = useState(0);
   const [fcEarned, setFcEarned] = useState(0);
   const [rematchKey, setRematchKey] = useState(0);
+  const [partnerLeft, setPartnerLeft] = useState(false);
 
   const myTapsRef = useRef(0);
   const offsetRef = useRef(0);          // serverNow - Date.now()
@@ -1668,20 +1669,24 @@ function MultiplayerRace({ linkCode, role, user, partnerName, onExit, onNext }) 
     // reset everything for a (re)match
     myTapsRef.current = 0; setMyTaps(0); setPTaps(0);
     youProg.setValue(0); pProg.setValue(0);
-    setPhase('connecting');
+    startRef.current = null;
+    setPhase('connecting'); setPartnerLeft(false);
+    // partner didn't (re)join in time → declare they left
+    timers.current.left = setTimeout(() => { if (aliveRef.current && !startRef.current) setPartnerLeft(true); }, 20000);
 
     const join = async () => {
       const d = await gPost('/api/games/race/join', { linkcode: linkCode, role });
       if (!aliveRef.current) return;
       if (!d) { setTimeout(join, 1500); return; }
       offsetRef.current = (d.serverNow || Date.now()) - Date.now();
-      if (d.startat) { startRef.current = new Date(d.startat).getTime(); begin(); }
+      if (d.startat) { clearTimeout(timers.current.left); startRef.current = new Date(d.startat).getTime(); begin(); }
       else { setTimeout(join, 1200); } // still waiting for partner to arrive
     };
     join();
 
     return () => {
       aliveRef.current = false;
+      clearTimeout(timers.current.left);
       Object.values(timers.current).forEach(clearInterval);
     };
   }, [rematchKey]);
@@ -1758,12 +1763,9 @@ function MultiplayerRace({ linkCode, role, user, partnerName, onExit, onNext }) 
         </Text>
         <FcChip amount={fcEarned} />
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 30 }}>
-          <TouchableOpacity onPress={() => setRematchKey(k => k + 1)} style={{ paddingHorizontal: 20, height: 52, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: 'rgba(255,255,255,0.6)', fontWeight: '800', textTransform: 'lowercase' }}>rematch</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onNext} style={{ borderRadius: 16, overflow: 'hidden' }}>
+          <TouchableOpacity onPress={() => setRematchKey(k => k + 1)} style={{ borderRadius: 16, overflow: 'hidden' }}>
             <LinearGradient colors={['#4ade80','#22c55e','#15803d']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: 26, height: 52, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: '#fff', fontWeight: '900', textTransform: 'lowercase' }}>next game →</Text>
+              <Text style={{ color: '#fff', fontWeight: '900', textTransform: 'lowercase' }}>play again</Text>
             </LinearGradient>
           </TouchableOpacity>
           <TouchableOpacity onPress={onExit} style={{ paddingHorizontal: 18, height: 52, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
@@ -1779,13 +1781,25 @@ function MultiplayerRace({ linkCode, role, user, partnerName, onExit, onNext }) 
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <LinearGradient colors={['#020d04','#0a1a0c','#020d04']} style={StyleSheet.absoluteFill} />
-        <ActivityIndicator color="#22c55e" size="large" />
-        <Text style={{ color: 'rgba(255,255,255,0.5)', marginTop: 16, fontSize: 14, textTransform: 'lowercase', letterSpacing: 1 }}>
-          waiting for {pName} to line up…
-        </Text>
-        <TouchableOpacity onPress={onExit} style={{ marginTop: 24 }}>
-          <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, textTransform: 'lowercase' }}>cancel</Text>
-        </TouchableOpacity>
+        {partnerLeft ? (
+          <>
+            <Text style={{ fontSize: 40 }}>👋</Text>
+            <Text style={{ fontSize: 20, fontWeight: '900', color: '#fff', textTransform: 'lowercase', marginTop: 12 }}>{pName} left</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.4)', marginTop: 6, textTransform: 'lowercase' }}>they didn't rejoin the race</Text>
+            <TouchableOpacity onPress={() => setRematchKey(k => k + 1)} style={{ marginTop: 22 }}><Text style={{ color: '#4ade80', fontWeight: '800', textTransform: 'lowercase' }}>wait again</Text></TouchableOpacity>
+            <TouchableOpacity onPress={onExit} style={{ marginTop: 14 }}><Text style={{ color: 'rgba(255,255,255,0.3)', textTransform: 'lowercase' }}>back to games</Text></TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <ActivityIndicator color="#22c55e" size="large" />
+            <Text style={{ color: 'rgba(255,255,255,0.5)', marginTop: 16, fontSize: 14, textTransform: 'lowercase', letterSpacing: 1 }}>
+              waiting for {pName} to line up…
+            </Text>
+            <TouchableOpacity onPress={onExit} style={{ marginTop: 24 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, textTransform: 'lowercase' }}>cancel</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     );
   }
