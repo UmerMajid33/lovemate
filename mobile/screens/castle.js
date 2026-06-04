@@ -2060,24 +2060,6 @@ export default function Castle({ onNavigate, params = {} }) {
               onPress={() => onNavigate?.('games', { role, homeName, linkCode, user, menu: true })}
             />
             <FeatureCard
-              icon3dSymbol="🎮"
-              iconColors={['#34d399', '#10b981', '#065f46']}
-              iconShadow="#10b981"
-              title="game arena"
-              desc="jump into back-to-back live games with your partner — auto-shuffled."
-              tag="earn FC"
-              onPress={() => onNavigate?.('games', { role, homeName, linkCode, user })}
-            />
-            <FeatureCard
-              icon3dSymbol="🃏"
-              iconColors={['#38bdf8', '#0ea5e9', '#0369a1']}
-              iconShadow="#0ea5e9"
-              title="solo games"
-              desc="no partner needed — play the mini-games on your own and still earn fantasy cash."
-              tag="solo · earn FC"
-              onPress={() => onNavigate?.('games', { role, homeName, linkCode, user, solo: true })}
-            />
-            <FeatureCard
               icon3dSymbol="🔥"
               iconColors={['#ff9500', '#ff6b00', '#bf4600']}
               iconShadow="#ff6b00"

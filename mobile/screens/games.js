@@ -2235,21 +2235,40 @@ function LiveScoreMatch({ gameId, GameComp, linkCode, role, user, partnerName, o
   const [fcEarned, setFcEarned] = useState(0);
   const [seed, setSeed]     = useState(0);       // shared track seed (identical on both)
   const [phase, setPhase]   = useState('connecting'); // connecting | playing | waiting | result
+  const [partnerLeft, setPartnerLeft] = useState(false);
   const myScoreRef = useRef(0);
   const alive = useRef(true);
   const timers = useRef({});
 
-  useEffect(() => {
-    alive.current = true;
+  const connect = () => {
+    setPartnerLeft(false);
+    clearTimeout(timers.current.left);
+    // if partner doesn't (re)join in time, declare they left
+    timers.current.left = setTimeout(() => { if (alive.current) setPartnerLeft(true); }, 20000);
     const join = async () => {
+      if (!alive.current || partnerLeftRef.current) return;
       const d = await gPost('/api/games/duel/join', { linkcode: linkCode, role, gametype: gameId, timed: false });
       if (!alive.current) return;
       if (d?.seed) setSeed(d.seed);
-      if (d && d.status === 'playing') { setReady(true); setPhase('playing'); startPolling(); }
-      else setTimeout(join, 1100);
+      if (d && d.status === 'playing') { clearTimeout(timers.current.left); setReady(true); setPhase('playing'); startPolling(); }
+      else if (!partnerLeftRef.current) setTimeout(join, 1100);
     };
     join();
-    return () => { alive.current = false; Object.values(timers.current).forEach(clearInterval); };
+  };
+  const partnerLeftRef = useRef(false);
+  useEffect(() => { partnerLeftRef.current = partnerLeft; }, [partnerLeft]);
+
+  const playAgain = () => {
+    Object.values(timers.current).forEach(clearInterval);
+    setPScore(0); setMyFinal(null); setPFinal(null); setFcEarned(0); myScoreRef.current = 0;
+    setReady(false); setPhase('connecting');
+    connect();
+  };
+
+  useEffect(() => {
+    alive.current = true;
+    connect();
+    return () => { alive.current = false; clearTimeout(timers.current.left); Object.values(timers.current).forEach(clearInterval); };
   }, []);
 
   const startPolling = () => {
@@ -2281,9 +2300,21 @@ function LiveScoreMatch({ gameId, GameComp, linkCode, role, user, partnerName, o
   if (phase === 'connecting') {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#080810' }}>
-        <ActivityIndicator color="#ff4d6d" size="large" />
-        <Text style={{ color: 'rgba(255,255,255,0.5)', marginTop: 16, textTransform: 'lowercase', letterSpacing: 1 }}>waiting for {pName}…</Text>
-        <TouchableOpacity onPress={onExit} style={{ marginTop: 24 }}><Text style={{ color: 'rgba(255,255,255,0.3)', textTransform: 'lowercase' }}>cancel</Text></TouchableOpacity>
+        {partnerLeft ? (
+          <>
+            <Text style={{ fontSize: 40 }}>👋</Text>
+            <Text style={{ fontSize: 20, fontWeight: '900', color: '#fff', textTransform: 'lowercase', marginTop: 12 }}>{pName} left</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.4)', marginTop: 6, textTransform: 'lowercase' }}>they didn't rejoin the game</Text>
+            <TouchableOpacity onPress={connect} style={{ marginTop: 22 }}><Text style={{ color: '#ff6b8a', fontWeight: '800', textTransform: 'lowercase' }}>wait again</Text></TouchableOpacity>
+            <TouchableOpacity onPress={onExit} style={{ marginTop: 14 }}><Text style={{ color: 'rgba(255,255,255,0.3)', textTransform: 'lowercase' }}>back to games</Text></TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <ActivityIndicator color="#ff4d6d" size="large" />
+            <Text style={{ color: 'rgba(255,255,255,0.5)', marginTop: 16, textTransform: 'lowercase', letterSpacing: 1 }}>waiting for {pName}…</Text>
+            <TouchableOpacity onPress={onExit} style={{ marginTop: 24 }}><Text style={{ color: 'rgba(255,255,255,0.3)', textTransform: 'lowercase' }}>cancel</Text></TouchableOpacity>
+          </>
+        )}
       </View>
     );
   }
@@ -2310,9 +2341,9 @@ function LiveScoreMatch({ gameId, GameComp, linkCode, role, user, partnerName, o
         <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.45)', textTransform: 'lowercase', marginTop: 12 }}>you {myFinal}  ·  {pName} {pFinal}</Text>
         <FcChip amount={fcEarned} />
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 30 }}>
-          <TouchableOpacity onPress={onNext} style={{ borderRadius: 16, overflow: 'hidden' }}>
+          <TouchableOpacity onPress={playAgain} style={{ borderRadius: 16, overflow: 'hidden' }}>
             <LinearGradient colors={['#ff6b8a','#ff4d6d','#c9184a']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: 26, height: 52, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: '#fff', fontWeight: '900', textTransform: 'lowercase' }}>next game →</Text>
+              <Text style={{ color: '#fff', fontWeight: '900', textTransform: 'lowercase' }}>play again</Text>
             </LinearGradient>
           </TouchableOpacity>
           <TouchableOpacity onPress={onExit} style={{ paddingHorizontal: 18, height: 52, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
