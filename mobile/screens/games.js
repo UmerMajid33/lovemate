@@ -1968,15 +1968,12 @@ function GoalDuel({ linkCode, role, user, partnerName, onExit, onNext }) {
         <FcChip amount={fcEarned} />
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 30 }}>
           <TouchableOpacity onPress={async () => { shownRef.current = -1; earnedRef.current = false; setFcEarned(0); setLocked(null); await gPost('/api/games/goal/rematch', { linkcode: linkCode }); poll(); }}
-            style={{ paddingHorizontal: 18, height: 52, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: 'rgba(255,255,255,0.6)', fontWeight: '800', textTransform: 'lowercase' }}>rematch</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onNext} style={{ borderRadius: 16, overflow: 'hidden' }}>
-            <LinearGradient colors={['#60a5fa','#3b82f6','#1d4ed8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: 24, height: 52, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: '#fff', fontWeight: '900', textTransform: 'lowercase' }}>next game →</Text>
+            style={{ borderRadius: 16, overflow: 'hidden' }}>
+            <LinearGradient colors={['#60a5fa','#3b82f6','#1d4ed8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: 26, height: 52, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: '#fff', fontWeight: '900', textTransform: 'lowercase' }}>play again</Text>
             </LinearGradient>
           </TouchableOpacity>
-          <TouchableOpacity onPress={onExit} style={{ paddingHorizontal: 16, height: 52, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
+          <TouchableOpacity onPress={onExit} style={{ paddingHorizontal: 18, height: 52, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: 'rgba(255,255,255,0.6)', fontWeight: '800', textTransform: 'lowercase' }}>exit</Text>
           </TouchableOpacity>
         </View>
@@ -2160,7 +2157,7 @@ function TugOfWar({ linkCode, role, user, partnerName, onExit, onNext }) {
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 30 }}>
           <TouchableOpacity onPress={onNext} style={{ borderRadius: 16, overflow: 'hidden' }}>
             <LinearGradient colors={['#fde68a','#f59e0b','#b45309']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: 26, height: 52, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: '#fff', fontWeight: '900', textTransform: 'lowercase' }}>next game →</Text>
+              <Text style={{ color: '#fff', fontWeight: '900', textTransform: 'lowercase' }}>play again</Text>
             </LinearGradient>
           </TouchableOpacity>
           <TouchableOpacity onPress={onExit} style={{ paddingHorizontal: 18, height: 52, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
@@ -2650,7 +2647,7 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext, solo =
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 30 }}>
           <TouchableOpacity onPress={onNext} style={{ borderRadius: 16, overflow: 'hidden' }}>
             <LinearGradient colors={['#c4b5fd','#a855f7','#6d28d9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: 26, height: 52, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: '#fff', fontWeight: '900', textTransform: 'lowercase' }}>next game →</Text>
+              <Text style={{ color: '#fff', fontWeight: '900', textTransform: 'lowercase' }}>play again</Text>
             </LinearGradient>
           </TouchableOpacity>
           <TouchableOpacity onPress={onExit} style={{ paddingHorizontal: 18, height: 52, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
@@ -2811,7 +2808,7 @@ function NeonTug({ linkCode, role, user, partnerName, onExit, onNext }) {
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 30 }}>
           <TouchableOpacity onPress={onNext} style={{ borderRadius: 16, overflow: 'hidden' }}>
             <LinearGradient colors={['#67e8f9','#22d3ee','#0891b2']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: 26, height: 52, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: '#003', fontWeight: '900', textTransform: 'lowercase' }}>next game →</Text>
+              <Text style={{ color: '#fff', fontWeight: '900', textTransform: 'lowercase' }}>play again</Text>
             </LinearGradient>
           </TouchableOpacity>
           <TouchableOpacity onPress={onExit} style={{ paddingHorizontal: 18, height: 52, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
@@ -3002,6 +2999,7 @@ function GameMenu({ linkCode, role, user, partnerName, onExit, onArena, autoAcce
   const alive = useRef(true);
   const pollRef = useRef();
   const soloMpRef = useRef(false);   // crash played solo (no partner sync)
+  const [mpKey, setMpKey] = useState(0); // bump to remount the mp game = "play again"
 
   // Header stats — fantasy cash + win counts.
   useEffect(() => {
@@ -3083,9 +3081,10 @@ function GameMenu({ linkCode, role, user, partnerName, onExit, onArena, autoAcce
   // ── MP view ──
   if (view === 'mp' && gameId) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <View key={mpKey} style={{ flex: 1, backgroundColor: '#000' }}>
         <StatusBar translucent barStyle="light-content" backgroundColor="transparent" />
-        {renderMpGame(gameId, { linkCode, role, user, partnerName, onExit: backToMenu, onNext: backToMenu, solo: soloMpRef.current })}
+        {/* onNext = "play again": remount the same game so it re-syncs with the partner */}
+        {renderMpGame(gameId, { linkCode, role, user, partnerName, onExit: backToMenu, onNext: () => setMpKey(k => k + 1), solo: soloMpRef.current })}
       </View>
     );
   }
