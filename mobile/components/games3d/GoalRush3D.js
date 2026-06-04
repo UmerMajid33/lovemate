@@ -30,7 +30,7 @@ export default function GoalRush3D({ onComplete, onScore }) {
   const ballT    = useRef(0);
   const keeperX  = useRef(0);
   const keeperDir= useRef(1);
-  const keeperSpd= useRef(2.0);
+  const keeperSpd= useRef(3.6);   // fast keeper
 
   const end = () => {
     if (endedRef.current) return;
@@ -74,6 +74,10 @@ export default function GoalRush3D({ onComplete, onScore }) {
     bar.rotation.z = Math.PI / 2; bar.position.set(0, 1.8, GOAL_Z); scene.add(bar);
     const net = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 2.4), new THREE.MeshBasicMaterial({ color: 0x9ca3af, wireframe: true, transparent: true, opacity: 0.25 }));
     net.position.set(0, 0.6, GOAL_Z - 0.1); scene.add(net);
+    // goal celebration flash
+    const flash = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 2.4), new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0 }));
+    flash.position.set(0, 0.6, GOAL_Z - 0.05); scene.add(flash);
+    let flashV = 0;
 
     // keeper
     const keeper = new THREE.Group();
@@ -106,9 +110,11 @@ export default function GoalRush3D({ onComplete, onScore }) {
         ball.position.x = laneX.current * t;
         ball.position.z = 3.4 + (GOAL_Z + 0.3 - 3.4) * t;
         ball.position.y = Math.sin(t * Math.PI) * 0.8;     // arc
+        ball.rotation.x += dt * 14; ball.rotation.z += dt * 9; // spin
         if (t >= 1) {
           const saved = Math.abs(keeperX.current - laneX.current) < SAVE_DIST;
-          if (!saved) { goalsRef.current += 1; setGoals(goalsRef.current); onScore?.(goalsRef.current * 100); }
+          if (!saved) { goalsRef.current += 1; setGoals(goalsRef.current); onScore?.(goalsRef.current * 100); flashV = 1; }
+          else { keeper.position.x += (laneX.current - keeper.position.x) * 0.6; } // lunge/dive to the save
           setFb(saved ? 'saved' : 'goal');
           phase.current = 'reveal'; revealUntil = now + 850;
         }
@@ -116,10 +122,13 @@ export default function GoalRush3D({ onComplete, onScore }) {
         setFb('');
         shotRef.current += 1; setShot(shotRef.current);
         resetBall();
-        keeperSpd.current = 2.0 + shotRef.current * 0.18;   // keeper speeds up
+        keeperSpd.current = 3.6 + shotRef.current * 0.4;    // keeper speeds up fast
         if (shotRef.current >= SHOTS) end();
         else phase.current = 'aim';
       }
+
+      flashV = Math.max(0, flashV - dt * 1.6);
+      flash.material.opacity = flashV * 0.5;
 
       renderer.render(scene, camera);
       gl.endFrameEXP();
