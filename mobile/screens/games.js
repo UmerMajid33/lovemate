@@ -1288,7 +1288,15 @@ function StackMemories({ onComplete, onScore }) {
 
   const stack = stackRef.current;
   const count = stack.length;
-  const COLORS = [['#ff9ec7', '#ff4d6d'], ['#c4b5fd', '#7c3aed'], ['#a7f3d0', '#10b981'], ['#fde68a', '#f59e0b'], ['#93c5fd', '#3b82f6'], ['#f9a8d4', '#db2777']];
+  // chunky cartoon block colors [body, dark outline, light top]
+  const COLORS = [
+    ['#ff5d8f', '#7a1733', '#ffd0e0'],
+    ['#7c5cff', '#2e1a6e', '#d8cdff'],
+    ['#22c08a', '#0c5a3c', '#bff3df'],
+    ['#ffb020', '#7a4a00', '#ffe7b0'],
+    ['#3aa0ff', '#0c3a78', '#cfe7ff'],
+    ['#ff7a3d', '#7a2e0c', '#ffd6c0'],
+  ];
   const items = [];
   for (let i = count - 1; i >= 0; i--) {
     const sy = BUILD_Y + (count - 1 - i) * SK_H;
@@ -1298,52 +1306,76 @@ function StackMemories({ onComplete, onScore }) {
   const m = movingRef.current;
   const mci = count % COLORS.length;
 
+  // cartoon block: thick dark outline, flat body, top sheen, side shade
+  const cartoonBlock = (x, y, w, h, ci, key, withFace) => {
+    const c = COLORS[ci];
+    const r = 10;
+    const eyeY = y + h * 0.42;
+    return (
+      <G key={key}>
+        {/* drop shadow */}
+        <Rect x={x + 4} y={y + 5} width={w} height={h} rx={r} fill="#1a0e2e" opacity={0.25} />
+        {/* body */}
+        <Rect x={x} y={y} width={w} height={h} rx={r} fill={c[0]} stroke={c[1]} strokeWidth={4} />
+        {/* bottom side-shade */}
+        <Rect x={x + 3} y={y + h * 0.62} width={Math.max(0, w - 6)} height={h * 0.3} rx={6} fill={c[1]} opacity={0.18} />
+        {/* top sheen */}
+        <Rect x={x + 7} y={y + 5} width={Math.max(0, w - 14)} height={h * 0.26} rx={5} fill={c[2]} opacity={0.9} />
+        {/* cute face on the active block */}
+        {withFace && w > 46 && (
+          <G>
+            <Circle cx={x + w / 2 - 13} cy={eyeY} r={6.5} fill="#fff" stroke={c[1]} strokeWidth={2} />
+            <Circle cx={x + w / 2 + 13} cy={eyeY} r={6.5} fill="#fff" stroke={c[1]} strokeWidth={2} />
+            <Circle cx={x + w / 2 - 11} cy={eyeY + 1} r={3} fill="#1a0e2e" />
+            <Circle cx={x + w / 2 + 15} cy={eyeY + 1} r={3} fill="#1a0e2e" />
+            <Path d={`M${x + w / 2 - 9} ${eyeY + 12} Q ${x + w / 2} ${eyeY + 18} ${x + w / 2 + 9} ${eyeY + 12}`} stroke={c[1]} strokeWidth={2.5} fill="none" strokeLinecap="round" />
+          </G>
+        )}
+      </G>
+    );
+  };
+
   return (
     <View style={{ flex: 1 }}>
-      <LinearGradient colors={['#070512', '#0f0a24', '#070512']} style={StyleSheet.absoluteFill} />
-      <GameHud left={{ label: 'fc', value: score, color: '#fbbf24' }} right={{ label: 'tower', value: count - 1, color: '#a78bfa' }} />
-      {mult > 1 && <Text style={{ position: 'absolute', top: 96, alignSelf: 'center', color: '#fbbf24', fontWeight: '900', textTransform: 'lowercase', letterSpacing: 1 }} pointerEvents="none">{mult}x combo</Text>}
+      {/* sunny cartoon sky */}
+      <LinearGradient colors={['#8fd4ff', '#bfe9ff', '#eafff2']} style={StyleSheet.absoluteFill} />
+      <GameHud left={{ label: 'fc', value: score, color: '#7a1733' }} right={{ label: 'tower', value: count - 1, color: '#2e1a6e' }} />
+      {mult > 1 && <Text style={{ position: 'absolute', top: 96, alignSelf: 'center', color: '#ff5d8f', fontWeight: '900', textTransform: 'lowercase', letterSpacing: 1 }} pointerEvents="none">{mult}x combo</Text>}
 
       <Svg width={W} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Defs>
-          {COLORS.map((c, i) => (
-            <SvgLinearGradient key={i} id={`stk${i}`} x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0%"   stopColor={lighten(c[1])} />
-              <Stop offset="55%"  stopColor={c[1]} />
-              <Stop offset="100%" stopColor={darken(c[1])} />
-            </SvgLinearGradient>
-          ))}
-          <RadialGradient id="stkGlow" cx="50%" cy="50%" rx="50%" ry="50%">
-            <Stop offset="0%" stopColor="#a78bfa" stopOpacity="0.16" />
-            <Stop offset="100%" stopColor="#070512" stopOpacity="0" />
-          </RadialGradient>
-        </Defs>
+        {/* sun with rays */}
+        <G>
+          {Array.from({ length: 12 }).map((_, i) => {
+            const a = (i / 12) * Math.PI * 2;
+            const cx = W - 56, cy = 92;
+            return <Rect key={i} x={cx - 2} y={cy - 44} width={4} height={14} rx={2} fill="#ffd84d" opacity={0.85} transform={`rotate(${(a * 180) / Math.PI} ${cx} ${cy})`} />;
+          })}
+          <Circle cx={W - 56} cy={92} r={26} fill="#ffd84d" stroke="#f59e0b" strokeWidth={3} />
+        </G>
+        {/* puffy clouds */}
+        {[[W * 0.22, 130, 1], [W * 0.7, 220, 0.8], [W * 0.4, 320, 0.65]].map(([cx, cy, s], i) => (
+          <G key={`cl${i}`} opacity={0.92}>
+            <Ellipse cx={cx} cy={cy} rx={34 * s} ry={20 * s} fill="#fff" />
+            <Ellipse cx={cx - 26 * s} cy={cy + 6 * s} rx={22 * s} ry={15 * s} fill="#fff" />
+            <Ellipse cx={cx + 26 * s} cy={cy + 6 * s} rx={22 * s} ry={15 * s} fill="#fff" />
+          </G>
+        ))}
 
-        {/* ambient glow behind the tower */}
-        <Ellipse cx={W / 2} cy={BUILD_Y + SK_H * 2} rx={W * 0.55} ry={height * 0.32} fill="url(#stkGlow)" />
+        {/* grassy ground */}
+        <Rect x={0} y={BUILD_Y + SK_H} width={W} height={height} fill="#7ed957" />
+        <Rect x={0} y={BUILD_Y + SK_H} width={W} height={8} fill="#5bb83a" />
 
-        {/* placed blocks (3D-ish: gradient body + top sheen + grounding shadow) */}
-        {items.map((it, k) => {
-          const h = SK_H - 4;
-          return (
-            <G key={k}>
-              <Rect x={it.x + 3} y={it.sy + h - 3} width={it.w} height={6} rx={3} fill="#000" opacity={0.28} />
-              <Rect x={it.x} y={it.sy} width={it.w} height={h} rx={7} fill={`url(#stk${it.ci})`} />
-              <Rect x={it.x + 4} y={it.sy + 3} width={Math.max(0, it.w - 8)} height={h * 0.32} rx={4} fill="#ffffff" opacity={0.22} />
-              <Rect x={it.x} y={it.sy} width={it.w} height={h} rx={7} fill="none" stroke={COLORS[it.ci][0]} strokeWidth="1.2" opacity={0.55} />
-            </G>
-          );
-        })}
+        {/* placed blocks */}
+        {items.map((it, k) => cartoonBlock(it.x, it.sy, it.w, SK_H - 4, it.ci, k, k === 0))}
 
-        {/* moving block — glowing */}
+        {/* crane cable + moving block with face */}
         {runRef.current && (() => {
           const h = SK_H - 4, y = BUILD_Y - SK_H;
           return (
             <G>
-              <Rect x={m.x - 4} y={y - 4} width={m.w + 8} height={h + 8} rx={10} fill={COLORS[mci][1]} opacity={0.22} />
-              <Rect x={m.x} y={y} width={m.w} height={h} rx={7} fill={`url(#stk${mci})`} />
-              <Rect x={m.x + 4} y={y + 3} width={Math.max(0, m.w - 8)} height={h * 0.32} rx={4} fill="#ffffff" opacity={0.28} />
-              <Rect x={m.x} y={y} width={m.w} height={h} rx={7} fill="none" stroke={COLORS[mci][0]} strokeWidth="1.6" />
+              <Rect x={m.x + m.w / 2 - 1.5} y={0} width={3} height={y + 4} fill="#5b4636" />
+              <Circle cx={m.x + m.w / 2} cy={y} r={5} fill="#8a6d52" stroke="#3a2a1c" strokeWidth={2} />
+              {cartoonBlock(m.x, y, m.w, h, mci, 'mv', true)}
             </G>
           );
         })()}
@@ -1358,7 +1390,7 @@ function StackMemories({ onComplete, onScore }) {
 const GAME_COMPONENTS = {
   racer: TapRacer, race: TapRacer, goal: GoalRush3D,
   balloon: BalloonPop, memory: MemoryMatch, pattern: PatternMatch,
-  bounce: BounceBlitz3D, cupid: CupidArrow, stack: StackMemories3D,
+  bounce: BounceBlitz3D, cupid: CupidArrow, stack: StackMemories,
 };
 
 // ─── Between-game transition splash (with FC reward) ─────────────────────────
