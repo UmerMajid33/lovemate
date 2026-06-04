@@ -2458,6 +2458,13 @@ function crashGL(multRef, crashedRef, aliveRef) {
   };
 }
 
+// Crash time from r∈[0,1): ~22% chance of an early "rug" (0.3-1.2s) so players
+// who don't bail in time actually lose their stake; otherwise 1.8-10.8s.
+function crashMs(r) {
+  if (r < 0.22) return 300 + Math.floor((r / 0.22) * 900);
+  return 1800 + Math.floor(((r - 0.22) / 0.78) * 9000);
+}
+
 function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext, solo = false }) {
   const partnerField = role === 'creator' ? 'joinerscore' : 'creatorscore';
   const partnerDone  = role === 'creator' ? 'joinerdone'  : 'creatordone';
@@ -2500,7 +2507,7 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext, solo =
     if (solo) {
       offRef.current = 0;
       startRef.current = Date.now() + 1600;                       // short countdown
-      crashAtRef.current = 2600 + Math.floor(Math.random() * 9000);
+      crashAtRef.current = crashMs(Math.random());
       setPhase('countdown');
       begin();
       return;
@@ -2514,7 +2521,7 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext, solo =
       offRef.current = (d.serverNow || Date.now()) - Date.now();
       if (d.startat && d.seed) {
         startRef.current = new Date(d.startat).getTime();
-        crashAtRef.current = 2600 + (d.seed % 9000); // identical crash time on both devices
+        crashAtRef.current = crashMs((d.seed % 1000) / 1000); // identical crash time on both devices
         begin();
       } else setTimeout(join, 1000);
     };
