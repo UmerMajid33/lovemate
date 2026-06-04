@@ -15,6 +15,7 @@ import { Renderer } from 'expo-three';
 import * as THREE from 'three';
 import StackMemories3D from '../components/games3d/StackMemories3D.js';
 import BounceBlitz3D from '../components/games3d/BounceBlitz3D.js';
+import GoalRush3D from '../components/games3d/GoalRush3D.js';
 
 const { width, height } = Dimensions.get('window');
 
@@ -1355,7 +1356,7 @@ function StackMemories({ onComplete, onScore }) {
 }
 
 const GAME_COMPONENTS = {
-  racer: TapRacer, race: TapRacer, goal: GoalRush,
+  racer: TapRacer, race: TapRacer, goal: GoalRush3D,
   balloon: BalloonPop, memory: MemoryMatch, pattern: PatternMatch,
   bounce: BounceBlitz3D, cupid: CupidArrow, stack: StackMemories3D,
 };
