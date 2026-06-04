@@ -2416,7 +2416,7 @@ function crashGL(multRef, crashedRef, aliveRef) {
   };
 }
 
-function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext }) {
+function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext, solo = false }) {
   const partnerField = role === 'creator' ? 'joinerscore' : 'creatorscore';
   const partnerDone  = role === 'creator' ? 'joinerdone'  : 'creatordone';
   const pName = partnerName || 'partner';
@@ -2453,6 +2453,17 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext }) {
   const confirmBet = async (amount) => {
     betRef.current = amount;
     if (amount > 0) await gPost('/api/games/bet', { linkcode: linkCode, role, name: user?.name || '', amount });
+
+    // Solo: no partner sync — start a local round immediately.
+    if (solo) {
+      offRef.current = 0;
+      startRef.current = Date.now() + 1600;                       // short countdown
+      crashAtRef.current = 2600 + Math.floor(Math.random() * 9000);
+      setPhase('countdown');
+      begin();
+      return;
+    }
+
     setPhase('connecting');
     const join = async () => {
       const d = await gPost('/api/games/duel/join', { linkcode: linkCode, role, gametype: 'crash', timed: true });
@@ -2469,11 +2480,13 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext }) {
   };
 
   const begin = () => {
-    timers.current.poll = setInterval(async () => {
-      const d = await gGet(`/api/games/duel/${linkCode}`);
-      if (!alive.current || !d) return;
-      setPBail((d[partnerField] || 0) / 100);
-    }, 500);
+    if (!solo) {
+      timers.current.poll = setInterval(async () => {
+        const d = await gGet(`/api/games/duel/${linkCode}`);
+        if (!alive.current || !d) return;
+        setPBail((d[partnerField] || 0) / 100);
+      }, 500);
+    }
 
     timers.current.tick = setInterval(() => {
       const localStart = startRef.current - offRef.current;
@@ -2500,13 +2513,12 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext }) {
     const localStart = startRef.current - offRef.current;
     const m = multAt(Date.now() - localStart);
     myBailRef.current = m; setMyBail(m);
-    gPost('/api/games/duel/score', { linkcode: linkCode, role, score: Math.round(m * 100), done: true });
+    if (!solo) gPost('/api/games/duel/score', { linkcode: linkCode, role, score: Math.round(m * 100), done: true });
   };
 
   const finish = async (bailedMult) => {
     setTimeout(async () => {
-      const d = await gGet(`/api/games/duel/${linkCode}`);
-      if (d) setPBail((d[partnerField] || 0) / 100);
+      if (!solo) { const d = await gGet(`/api/games/duel/${linkCode}`); if (d) setPBail((d[partnerField] || 0) / 100); }
       if (bailedMult > 0) {
         if (betRef.current > 0) {
           // bet payout = stake × multiplier locked
@@ -2578,9 +2590,11 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext }) {
         <Text style={{ fontSize: 34, fontWeight: '900', color: bailed ? '#22c55e' : '#ef4444', textTransform: 'lowercase', letterSpacing: -1, textAlign: 'center' }}>
           {bailed ? `secured ${myBail.toFixed(2)}×!` : 'you crashed! 💥'}
         </Text>
-        <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', textTransform: 'lowercase', marginTop: 12, textAlign: 'center' }}>
-          {pName} {pBail > 0 ? `bailed at ${pBail.toFixed(2)}×` : 'crashed too 💥'}
-        </Text>
+        {!solo && (
+          <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', textTransform: 'lowercase', marginTop: 12, textAlign: 'center' }}>
+            {pName} {pBail > 0 ? `bailed at ${pBail.toFixed(2)}×` : 'crashed too 💥'}
+          </Text>
+        )}
         {clutch && <Text style={{ fontSize: 13, color: '#fbbf24', fontWeight: '800', textTransform: 'lowercase', marginTop: 8 }}>⚡ clutch bonus — nerves of steel!</Text>}
         {betRef.current > 0 && (
           <Text style={{ fontSize: 13, color: bailed ? '#22c55e' : '#ef4444', textTransform: 'lowercase', marginTop: 10, fontWeight: '700' }}>
@@ -2916,7 +2930,7 @@ function TicTacToe({ linkCode, role, user, partnerName, onExit }) {
 // ─── Non-scrolling game menu: pick a game → play solo or invite partner ───────
 const MENU_GAMES = [
   { id: 'xo',       label: 'tic tac toe',     emoji: '⭕', color: '#22d3ee', solo: false, tag: 'turn-based',   desc: 'classic x & o — you place x, partner places o.', stat: '2p' },
-  { id: 'crash',    label: 'crash & clutch',  emoji: '🎰', color: '#a855f7', solo: false, tag: 'bet & bail',   desc: 'bet fantasy cash. cash out before it crashes.', stat: 'live' },
+  { id: 'crash',    label: 'crash & clutch',  emoji: '🎰', color: '#a855f7', solo: true,  tag: 'bet & bail',   desc: 'bet fantasy cash. cash out before it crashes — solo or vs partner.', stat: 'live' },
   { id: 'neon',     label: 'neon tug',        emoji: '🎯', color: '#22d3ee', solo: false, tag: 'mash',         desc: 'mash faster than your partner to win.',         stat: '15 sec' },
   { id: 'race',     label: 'tap race',        emoji: '🏁', color: '#22c55e', solo: true,  tag: 'race',         desc: 'tap like crazy and cross the line first.',      stat: '20 sec' },
   { id: 'tug',      label: 'tug of war',      emoji: '💪', color: '#f59e0b', solo: false, tag: 'pull',         desc: 'out-pull your partner across the line.',        stat: 'best of 3' },
@@ -2942,6 +2956,7 @@ function GameMenu({ linkCode, role, user, partnerName, onExit, onArena, autoAcce
   const autoAcceptedRef = useRef(false);
   const alive = useRef(true);
   const pollRef = useRef();
+  const soloMpRef = useRef(false);   // crash played solo (no partner sync)
 
   // Header stats — fantasy cash + win counts.
   useEffect(() => {
@@ -2985,6 +3000,7 @@ function GameMenu({ linkCode, role, user, partnerName, onExit, onArena, autoAcce
   const backToMenu = () => {
     gPost('/api/games/lobby/leave', { linkcode: linkCode });
     gPost('/api/inbox/clear-invites', { linkcode: linkCode });  // game ended → drop the invite notification
+    soloMpRef.current = false;
     setGameId(null); setSoloResult(null); soloEndedRef.current = false; liveScoreRef.current = 0;
     setView('menu');
   };
@@ -3024,7 +3040,7 @@ function GameMenu({ linkCode, role, user, partnerName, onExit, onArena, autoAcce
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <StatusBar translucent barStyle="light-content" backgroundColor="transparent" />
-        {renderMpGame(gameId, { linkCode, role, user, partnerName, onExit: backToMenu, onNext: backToMenu })}
+        {renderMpGame(gameId, { linkCode, role, user, partnerName, onExit: backToMenu, onNext: backToMenu, solo: soloMpRef.current })}
       </View>
     );
   }
@@ -3091,8 +3107,11 @@ function GameMenu({ linkCode, role, user, partnerName, onExit, onArena, autoAcce
 
   // Dispatch a tapped game by the selected mode.
   const playGame = (g) => {
-    if (mode === 'solo') { if (g.solo) startSolo(g.id); else invitePartner(g.id); }
-    else                 invitePartner(g.id); // vs partner
+    if (mode === 'vs') { soloMpRef.current = false; invitePartner(g.id); return; }
+    // solo
+    if (g.id === 'crash') { soloMpRef.current = true; setGameId('crash'); setView('mp'); return; } // solo crash (local, no partner)
+    if (g.solo) startSolo(g.id);
+    else        { soloMpRef.current = false; invitePartner(g.id); }
   };
 
   const MODES = [
