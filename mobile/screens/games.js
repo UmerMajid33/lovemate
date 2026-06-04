@@ -14,6 +14,7 @@ import { GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
 import * as THREE from 'three';
 import StackMemories3D from '../components/games3d/StackMemories3D.js';
+import BounceBlitz3D from '../components/games3d/BounceBlitz3D.js';
 
 const { width, height } = Dimensions.get('window');
 
@@ -1356,7 +1357,7 @@ function StackMemories({ onComplete, onScore }) {
 const GAME_COMPONENTS = {
   racer: TapRacer, race: TapRacer, goal: GoalRush,
   balloon: BalloonPop, memory: MemoryMatch, pattern: PatternMatch,
-  bounce: BounceBlitz, cupid: CupidArrow, stack: StackMemories3D,
+  bounce: BounceBlitz3D, cupid: CupidArrow, stack: StackMemories3D,
 };
 
 // ─── Between-game transition splash (with FC reward) ─────────────────────────
