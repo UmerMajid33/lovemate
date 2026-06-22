@@ -6,10 +6,12 @@ const KEYS = {
   USER:    'lovemate:user',
   HOME:    'lovemate:home',     // legacy single-home key (migrated on first read)
   HOMES:   'lovemate:homes',    // current multi-home list
+  CLUBS:   'lovemate:clubs',    // friend clubs — entirely separate from homes
   SESSION: 'lovemate:loggedin', // session flag (set on login, cleared on logout)
 };
 
 export const MAX_HOMES = 2; // a user may belong to at most two homes
+export const MAX_CLUBS = 3;  // a user may belong to at most three clubs
 
 // ── User ──────────────────────────────────────────────────────────────────────
 /** Save registered user: { name, email, password, gender } */
@@ -119,8 +121,73 @@ export async function getHome() {
   return list[0] || null;
 }
 
+// ── Active home (which home the user is currently inside) ─────────────────────
+async function activeHomeKey() {
+  const u = await getUser();
+  const email = (u && u.email ? u.email : 'anon').toLowerCase();
+  return `lovemate:activehome:${email}`;
+}
+
+/** Remember which home the user opened, so reloads return there (not always #1). */
+export async function setActiveHomeCode(code) {
+  try { await AsyncStorage.setItem(await activeHomeKey(), (code || '').toString()); } catch (_) {}
+}
+
+/** The home the user was last inside (falls back to the most recent). */
+export async function getActiveHome() {
+  const list = await getHomes();
+  if (!list.length) return null;
+  let code = '';
+  try { code = (await AsyncStorage.getItem(await activeHomeKey())) || ''; } catch (_) {}
+  code = code.toLowerCase();
+  return list.find(h => (h.linkCode || '').toLowerCase() === code) || list[0];
+}
+
 /** Clear the current user's homes. */
 export async function clearHome() {
   const key = await homesKey();
   await AsyncStorage.removeItem(key);
+}
+
+// ── Clubs (multi, scoped per user) ────────────────────────────────────────────
+// Stored under their own namespaced key so club data NEVER collides with homes.
+async function clubsKey() {
+  const u = await getUser();
+  const email = (u && u.email ? u.email : 'anon').toLowerCase();
+  return `${KEYS.CLUBS}:${email}`;
+}
+
+/** Get the current user's clubs (newest first). */
+export async function getClubs() {
+  const key = await clubsKey();
+  const raw = await AsyncStorage.getItem(key);
+  if (!raw) return [];
+  try { return JSON.parse(raw) || []; } catch (_) { return []; }
+}
+
+/** Save (upsert) a club into the current user's list, matched by clubCode. */
+export async function saveClub(clubData) {
+  const key = await clubsKey();
+  const raw = await AsyncStorage.getItem(key);
+  let list = [];
+  try { list = raw ? JSON.parse(raw) || [] : []; } catch (_) {}
+  const lc  = (clubData.clubCode || '').toLowerCase();
+  const idx = list.findIndex(c => (c.clubCode || '').toLowerCase() === lc);
+  let next;
+  if (idx >= 0) { next = [...list]; next[idx] = { ...list[idx], ...clubData }; }
+  else          { next = [clubData, ...list]; }
+  await AsyncStorage.setItem(key, JSON.stringify(next));
+  return next;
+}
+
+/** Remove a single club by its code. Returns the remaining list. */
+export async function removeClub(clubCode) {
+  const key = await clubsKey();
+  const raw = await AsyncStorage.getItem(key);
+  let list = [];
+  try { list = raw ? JSON.parse(raw) || [] : []; } catch (_) {}
+  const lc = (clubCode || '').toLowerCase();
+  const next = list.filter(c => (c.clubCode || '').toLowerCase() !== lc);
+  await AsyncStorage.setItem(key, JSON.stringify(next));
+  return next;
 }

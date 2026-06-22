@@ -17,6 +17,14 @@ import homenoderoutes from './routes/homenoderoutes.js';
 import diaryroutes    from './routes/diaryroutes.js';
 import quizroutes     from './routes/quizroutes.js';
 import xoroutes       from './routes/xoroutes.js';
+import chatroutes     from './routes/chatroutes.js';
+import clubroutes     from './routes/clubroutes.js';
+import clubchatroutes from './routes/clubchatroutes.js';
+import clubscoreroutes from './routes/clubscoreroutes.js';
+import clubgameroutes from './routes/clubgameroutes.js';
+import carromduelroutes from './routes/carromduelroutes.js';
+import airoutes from './routes/airoutes.js';
+import justicecourtroutes from './routes/justicecourtroutes.js';
 
 dotenv.config();
 
@@ -43,6 +51,14 @@ app.use('/api/home',   homenoderoutes);
 app.use('/api/diary',  diaryroutes);
 app.use('/api/quiz',   quizroutes);
 app.use('/api/xo',     xoroutes);
+app.use('/api/chat',   chatroutes);
+app.use('/api/club',   clubroutes);
+app.use('/api/clubchat', clubchatroutes);
+app.use('/api/clubscore', clubscoreroutes);
+app.use('/api/clubgame',  clubgameroutes);
+app.use('/api/carromduel', carromduelroutes);
+app.use('/api/ai',        airoutes);
+app.use('/api/justice-court', justicecourtroutes);
 
 const PORT = process.env.PORT || 5000;
 

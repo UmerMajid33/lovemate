@@ -437,6 +437,17 @@ router.post('/duel/join', async (req, res) => {
     let s = await duelsession.findOne({ linkcode: lc });
     const stale = !s || s.gametype !== gametype || (s.creatordone && s.joinerdone);
 
+    // I'm done but my partner is still playing the current round → report
+    // 'waiting' (client keeps retrying) instead of dropping me into their
+    // live game; once they finish, the next join sees both done and resets.
+    if (!stale && s.status === 'playing') {
+      const myDone      = role === 'creator' ? s.creatordone : s.joinerdone;
+      const partnerDone = role === 'creator' ? s.joinerdone  : s.creatordone;
+      if (myDone && !partnerDone) {
+        return res.status(200).json({ ...duelState(s), status: 'waiting', startat: null });
+      }
+    }
+
     if (stale) {
       s = await duelsession.findOneAndUpdate(
         { linkcode: lc },

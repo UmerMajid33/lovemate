@@ -38,10 +38,13 @@ export default function GoalRush3D({ onComplete, onScore }) {
     setTimeout(() => onComplete?.(goalsRef.current * 100), 700);
   };
 
+  const mountedRef = useRef(true);
+
   useEffect(() => {
+    mountedRef.current = true;
     let c = 3;
     const cd = setInterval(() => { c--; setCnt(c); if (c <= 0) { clearInterval(cd); runRef.current = true; } }, 800);
-    return () => { clearInterval(cd); runRef.current = false; };
+    return () => { clearInterval(cd); runRef.current = false; mountedRef.current = false; };
   }, []);
 
   const shoot = (lane) => {
@@ -94,6 +97,7 @@ export default function GoalRush3D({ onComplete, onScore }) {
 
     let last = Date.now(), revealUntil = 0;
     const render = () => {
+      if (!mountedRef.current) return;   // stop the loop when the screen unmounts
       requestAnimationFrame(render);
       if (endedRef.current) { renderer.render(scene, camera); gl.endFrameEXP(); return; }
       const now = Date.now(); const dt = Math.min((now - last) / 1000, 0.04); last = now;
@@ -153,7 +157,7 @@ export default function GoalRush3D({ onComplete, onScore }) {
       {countdown <= 0 && (
         <View style={s.lanes}>
           {['left', 'center', 'right'].map(l => (
-            <TouchableOpacity key={l} activeOpacity={0.8} style={s.laneBtn} onPress={() => shoot(l)}>
+            <TouchableOpacity key={l} activeOpacity={0.8} style={s.laneBtn} onPressIn={() => shoot(l)}>
               <Text style={s.laneTxt}>{l === 'left' ? '◄ left' : l === 'right' ? 'right ►' : '▲ center'}</Text>
             </TouchableOpacity>
           ))}

@@ -1990,10 +1990,9 @@ export default function Castle({ onNavigate, params = {} }) {
             </TouchableOpacity>
           </View>
 
-          {/* Section: connect */}
-          <SectionLabel icon="💞" text="your bond" />
-
-          <View style={{ width: '100%', gap: 14, marginBottom: 8 }}>
+          {/* Section: express romance */}
+          <SectionCard icon="💞" icon3dSymbol="💌" iconColors={['#F08FA0', '#E0506E', '#7A2738']} iconShadow="#E0506E"
+            title="express romance" subtitle="letters, moods & clearing the air" pills={['letters', 'moods', 'complaints']}>
             <FeatureCard
               icon3dSymbol="💌"
               iconColors={['#F08FA0', '#E0506E', '#7A2738']}
@@ -2023,12 +2022,11 @@ export default function Castle({ onNavigate, params = {} }) {
               tag="clear the air"
               onPress={() => setActiveModal('complaint')}
             />
-          </View>
+          </SectionCard>
 
-          {/* Section: play */}
-          <SectionLabel icon="🎮" text="play together" />
-
-          <View style={{ width: '100%', gap: 14, marginBottom: 8 }}>
+          {/* Section: play together */}
+          <SectionCard icon="🎮" icon3dSymbol="🎮" iconColors={['#a78bfa', '#7c3aed', '#4c1d95']} iconShadow="#7c3aed"
+            title="play together" subtitle="feed, quiz, games & dares" pills={['games', 'quiz', 'dares']}>
             <FeatureCard
               icon3dSymbol="🃏"
               iconColors={['#C9A86A', '#f59e0b', '#92400e']}
@@ -2077,12 +2075,20 @@ export default function Castle({ onNavigate, params = {} }) {
               tag="settle it"
               onPress={() => setActiveModal('coin')}
             />
-          </View>
+            <FeatureCard
+              icon3dSymbol="⚖️"
+              iconColors={['#fde68a', '#d4af37', '#92400e']}
+              iconShadow="#d4af37"
+              title="justice court"
+              desc="settle your silliest fights — file a case, argue it out, and let judge gaveltron deliver a dramatic verdict."
+              tag="ai judge"
+              onPress={() => onNavigate?.('court', { role, homeName, linkCode, user })}
+            />
+          </SectionCard>
 
-          {/* Section: nest */}
-          <SectionLabel icon="🪺" text="your nest" />
-
-          <View style={{ width: '100%', gap: 14, marginBottom: 50 }}>
+          {/* Section: memories */}
+          <SectionCard icon="🪺" icon3dSymbol="📖" iconColors={['#fbcfe8', '#ec4899', '#9d174d']} iconShadow="#ec4899"
+            title="memories" subtitle="diary, gifts, profile & countdown" pills={['diary', 'gifts', 'countdown']}>
             <FeatureCard
               icon3dSymbol="📖"
               iconColors={['#fbcfe8', '#ec4899', '#9d174d']}
@@ -2121,7 +2127,7 @@ export default function Castle({ onNavigate, params = {} }) {
               tag="your story"
               onPress={() => onNavigate?.('countdown', { role, homeName, linkCode, user })}
             />
-          </View>
+          </SectionCard>
 
         </Animated.View>
       </ScrollView>
@@ -2184,6 +2190,81 @@ function SectionLabel({ icon, text }) {
   );
 }
 
+// ─── Section card — big "shared inbox"-style card that opens a full page ───────
+const SECTION_PILL = [
+  { bg: 'rgba(168,85,247,0.18)', bd: 'rgba(168,85,247,0.45)', fg: '#c4b5fd' },
+  { bg: 'rgba(245,158,11,0.15)', bd: 'rgba(245,158,11,0.45)', fg: '#fbbf24' },
+  { bg: 'rgba(244,114,182,0.15)', bd: 'rgba(244,114,182,0.45)', fg: '#f9a8d4' },
+];
+
+function SectionCard({ icon, icon3dSymbol, iconColors, iconShadow, title, subtitle, pills = [], children }) {
+  const [open, setOpen] = useState(false);
+  const pressScale = useRef(new Animated.Value(1)).current;
+
+  return (
+    <>
+      <TouchableOpacity
+        activeOpacity={1}
+        onPress={() => setOpen(true)}
+        style={{ width: '100%', marginBottom: 14 }}
+        onPressIn={() => Animated.spring(pressScale, { toValue: 0.97, useNativeDriver: true }).start()}
+        onPressOut={() => Animated.spring(pressScale, { toValue: 1, useNativeDriver: true }).start()}
+      >
+        <Animated.View style={[styles.featureCard, { transform: [{ scale: pressScale }], borderColor: TC.accentLine }]}>
+          <LinearGradient
+            colors={['rgba(224,80,110,0.10)', 'rgba(224,80,110,0.02)', TC.surface]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={styles.featureCardInner}
+          >
+            <Icon3D symbol={icon3dSymbol} size={62} colors={iconColors} shadowColor={iconShadow} />
+            <View style={{ flex: 1, marginLeft: 16 }}>
+              <Text style={styles.featureTitle}>{title}</Text>
+              {subtitle ? <Text style={styles.featureDesc}>{subtitle}</Text> : null}
+              {pills.length > 0 && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 9 }}>
+                  {pills.map((p, i) => {
+                    const c = SECTION_PILL[i % SECTION_PILL.length];
+                    return (
+                      <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.bg, borderColor: c.bd, borderWidth: 1, borderRadius: 100, paddingHorizontal: 8, paddingVertical: 3 }}>
+                        <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: c.fg }} />
+                        <Text style={{ color: c.fg, fontSize: 10, fontWeight: '700', textTransform: 'lowercase', letterSpacing: 0.3 }}>{p}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+            <LinearGradient colors={['rgba(224,80,110,0.28)', 'rgba(224,80,110,0.08)']} style={styles.featureArrow}>
+              <SvgIcon symbol="→" size={30} />
+            </LinearGradient>
+          </LinearGradient>
+        </Animated.View>
+      </TouchableOpacity>
+
+      <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)} transparent={false}>
+        <View style={{ flex: 1, backgroundColor: TC.bg }}>
+          <SpaceBackground />
+          <SafeAreaView style={{ flex: 1 }}>
+            <View style={styles.sectionPageNav}>
+              <TouchableOpacity onPress={() => setOpen(false)} style={styles.backBtn}>
+                <Text style={styles.backBtnText}>←</Text>
+              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Text style={{ fontSize: 22 }}>{icon}</Text>
+                <Text style={styles.sectionPageTitle}>{title}</Text>
+              </View>
+              <View style={{ width: 42 }} />
+            </View>
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 60, gap: 14 }} showsVerticalScrollIndicator={false}>
+              {children}
+            </ScrollView>
+          </SafeAreaView>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: TC.bg },
@@ -2222,6 +2303,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100,
   },
   roleTxt: { fontSize: 11, color: TC.textSoft, textTransform: 'uppercase', fontWeight: '600', letterSpacing: 0.5 },
+
+  sectionCard: {
+    width: '100%', borderRadius: 24, borderWidth: 1, borderColor: TC.hairline,
+    backgroundColor: 'rgba(255,255,255,0.035)', padding: 16, marginBottom: 14, marginTop: 4,
+  },
+  sectionCardHead: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  sectionCardTitle: { fontSize: 18, color: TC.textSoft, fontWeight: '800', textTransform: 'lowercase', letterSpacing: 0.3 },
+  sectionCardSub: { fontSize: 12, color: TC.textMuted, textTransform: 'lowercase', marginTop: 2 },
+  sectionCount: {
+    fontSize: 12, color: TC.accentSoft, fontWeight: '800',
+    backgroundColor: TC.surface, borderWidth: 1, borderColor: TC.accentLine,
+    minWidth: 24, textAlign: 'center', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 100, overflow: 'hidden',
+  },
+  sectionChevron: { fontSize: 22, color: TC.textMuted, fontWeight: '700', marginLeft: 4 },
+  sectionPageNav: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16,
+  },
+  sectionPageTitle: { fontSize: 20, color: TC.textSoft, fontWeight: '800', textTransform: 'lowercase', letterSpacing: 0.3 },
 
   heroSection: { width: '100%', alignItems: 'center', paddingVertical: 8 },
   heroTagline: {

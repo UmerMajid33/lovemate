@@ -14,6 +14,7 @@ import { getHomes, saveHome, removeHome, MAX_HOMES, getUser, setLoggedIn } from 
 import { API_BASE } from '../utils/api';
 import { colors as TC, fonts as TF } from '../theme/theme.js';
 import SpaceBackground from '../theme/SpaceBackground.js';
+import AiChat from '../components/AiChat.js';
 
 const { width, height } = Dimensions.get('window');
 
@@ -1056,6 +1057,36 @@ export default function UserHome({ onNavigate, user = { name: 'mate', gender: 'u
               </View>
             )}
 
+            {/* ── Clubs — friend groups (entirely separate from homes) · pinned at the bottom ── */}
+            <View style={[styles.sectionLabelRow, { marginTop: 26 }]}>
+              <View style={styles.sectionLabelLine} />
+              <Text style={styles.sectionLabel}>hang with friends</Text>
+              <View style={styles.sectionLabelLine} />
+            </View>
+            <TouchableOpacity onPress={() => onNavigate('club', user)} activeOpacity={0.88} style={[styles.bigCard, { width: '100%' }]}>
+              <LinearGradient
+                colors={['rgba(34,197,94,0.12)', 'rgba(250,204,21,0.05)', TC.surface]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.bigCardGrad}
+              >
+                <View style={styles.bigCardIconWrap}>
+                  <LinearGradient colors={['rgba(34,197,94,0.28)', 'rgba(34,197,94,0.05)']} style={styles.bigCardIcon}>
+                    <Text style={{ fontSize: 30 }}>🎉</Text>
+                  </LinearGradient>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.bigCardTitle}>enter a club</Text>
+                  <Text style={styles.bigCardDesc}>round up your crew — up to 5 friends in one goofy hangout. games, chaos & good times.</Text>
+                  <View style={[styles.bigCardTag, { backgroundColor: 'rgba(34,197,94,0.14)', borderColor: 'rgba(34,197,94,0.3)' }]}>
+                    <Text style={[styles.bigCardTagText, { color: '#4ade80' }]}>squad · 5 max</Text>
+                  </View>
+                </View>
+                <View style={[styles.arrowCircle, { borderColor: 'rgba(34,197,94,0.3)' }]}>
+                  <Text style={[styles.arrowText, { color: '#4ade80' }]}>→</Text>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+
           </Animated.View>
         )}
 
@@ -1218,6 +1249,9 @@ export default function UserHome({ onNavigate, user = { name: 'mate', gender: 'u
         )}
 
       </ScrollView>
+
+      {/* floating AI assistant */}
+      <AiChat />
     </SafeAreaView>
   );
 }

@@ -27,6 +27,14 @@ function TabIcon({ name, color }) {
       </Svg>
     );
   }
+  if (name === 'chat') {
+    return (
+      <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+        <Path d="M4 5.5h16v11H8.5L4 20z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        <Path d="M8 10.5h8M8 13.5h5" stroke={color} strokeWidth={2} strokeLinecap="round" />
+      </Svg>
+    );
+  }
   // profile
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
@@ -42,13 +50,18 @@ const TABS = [
   { id: 'profile',  icon: 'profile', label: 'profile' },
 ];
 
-export default function BottomNav({ current, onNavigate }) {
+// Couple chat lives only inside the home (castle), where the linkCode/partner exist.
+const CHAT_TAB = { id: 'chat', icon: 'chat', label: 'chat' };
+
+export default function BottomNav({ current, onNavigate, unreadChat = 0 }) {
+  const tabs = current === 'castle' ? [...TABS, CHAT_TAB] : TABS;
   return (
     <View style={styles.wrap} pointerEvents="box-none">
       <View style={styles.bar}>
-        {TABS.map(tab => {
+        {tabs.map(tab => {
           const active = current === tab.id;
           const color  = active ? colors.accentSoft : colors.textMuted;
+          const badge  = tab.id === 'chat' && unreadChat > 0;
           return (
             <TouchableOpacity
               key={tab.id}
@@ -56,8 +69,15 @@ export default function BottomNav({ current, onNavigate }) {
               style={styles.tab}
               onPress={() => { if (!active) onNavigate?.(tab.id); }}
             >
-              <TabIcon name={tab.icon} color={color} />
-              <Text style={[styles.label, { color }]}>{tab.label}</Text>
+              <View>
+                <TabIcon name={tab.icon} color={badge ? colors.accent : color} />
+                {badge && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeTxt}>{unreadChat > 99 ? '99+' : unreadChat}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={[styles.label, { color: badge ? colors.accentSoft : color }]}>{tab.label}</Text>
               {active && <View style={styles.activeDot} />}
             </TouchableOpacity>
           );
@@ -86,5 +106,12 @@ const styles = StyleSheet.create({
     paddingVertical: 4, position: 'relative',
   },
   activeDot: { position: 'absolute', bottom: -3, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.accent },
+  badge: {
+    position: 'absolute', top: -6, right: -10,
+    minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4,
+    backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: colors.bgElev,
+  },
+  badgeTxt: { fontSize: 9, color: '#fff', fontWeight: '900' },
   label: { fontSize: 9.5, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1.2 },
 });

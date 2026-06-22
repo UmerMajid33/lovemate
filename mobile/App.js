@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, StyleSheet, StatusBar, ActivityIndicator, Text, Platform, LogBox, Animated } from 'react-native';
 
 // Web has no native animation module. Rather than hide the warning, force every
@@ -31,11 +32,14 @@ import Login from './screens/login.js';
 import Register from './screens/register.js';
 import UserHome from './screens/userhome.js';
 import Castle from './screens/castle.js';
+import Chat from './screens/chat.js';
+import Club from './screens/club.js';
+import Court from './screens/court.js';
 import Feed        from './screens/feed.js';
 import Games       from './screens/games.js';
 import Shop        from './screens/shop.js';
 import HomeProfile from './screens/homeprofile.js';
-import { getHome, getUser, isLoggedIn } from './utils/storage.js';
+import { getActiveHome, setActiveHomeCode, getUser, isLoggedIn } from './utils/storage.js';
 import { API_BASE } from './utils/api.js';
 import BootLoader from './components/BootLoader.js';
 import Countdown from './screens/countdown.js';
@@ -62,6 +66,47 @@ export default function App() {
   // Boot-time backend wake (cold Render instances take ~30-60s to spin up).
   const [slowBoot, setSlowBoot] = useState(false);
 
+  // ── Unread couple-chat badge ──────────────────────────────────────────────
+  const [unreadChat, setUnreadChat] = useState(0);
+  const lastReadRef = useRef(null);                 // ISO timestamp of last time chat was viewed
+  const chatKey = (lc) => `chat_lastread_${lc}`;
+
+  const markChatRead = async () => {
+    const lc = castleParams?.linkCode;
+    const now = new Date().toISOString();
+    lastReadRef.current = now;
+    setUnreadChat(0);
+    if (lc) { try { await AsyncStorage.setItem(chatKey(lc), now); } catch (_) {} }
+  };
+
+  // load last-read whenever the active home changes
+  useEffect(() => {
+    const lc = castleParams?.linkCode;
+    if (!lc) return;
+    (async () => {
+      try { lastReadRef.current = (await AsyncStorage.getItem(chatKey(lc))) || null; } catch (_) {}
+    })();
+  }, [castleParams?.linkCode]);
+
+  // poll unread count (and keep marking read while inside chat)
+  useEffect(() => {
+    const lc = castleParams?.linkCode;
+    const role = castleParams?.role;
+    if (!lc || !role) return;
+    let alive = true;
+    const tick = async () => {
+      if (currentScreen === 'chat') { markChatRead(); return; }
+      try {
+        const since = lastReadRef.current ? `&since=${encodeURIComponent(lastReadRef.current)}` : '';
+        const r = await fetch(`${API_BASE}/api/chat/${lc}/unread?role=${role}${since}`);
+        if (r.ok && alive) { const d = await r.json(); setUnreadChat(d.count || 0); }
+      } catch (_) {}
+    };
+    tick();
+    const id = setInterval(tick, 4000);
+    return () => { alive = false; clearInterval(id); };
+  }, [castleParams?.linkCode, castleParams?.role, currentScreen]);
+
   // Ping the health endpoint until the backend answers (or we give up).
   async function warmUp() {
     const start = Date.now();
@@ -87,7 +132,7 @@ export default function App() {
         const loggedIn = await isLoggedIn();
         if (!loggedIn) { setCurrentScreen('landing'); return; }
 
-        const [savedHome, savedUser] = await Promise.all([getHome(), getUser()]);
+        const [savedHome, savedUser] = await Promise.all([getActiveHome(), getUser()]);
         const user = savedUser
           ? { name: savedUser.name || '', gender: savedUser.gender || '', email: savedUser.email || '' }
           : { name: '', gender: '', email: '' };
@@ -107,13 +152,14 @@ export default function App() {
     restoreSession();
   }, []);
 
-  const CASTLE_ROOTED = ['castle', 'feed', 'games', 'shop', 'homeprofile', 'countdown', 'diary', 'quiz'];
+  const CASTLE_ROOTED = ['castle', 'feed', 'games', 'shop', 'homeprofile', 'countdown', 'diary', 'quiz', 'chat', 'court'];
   // Footer (home · explore · profile) shows on the single-user shell AND on the
   // in-home pages — but NOT on games (it has its own bottom mode bar).
   const TABBED = ['userhome', 'explore', 'profile', 'castle', 'feed', 'shop', 'homeprofile', 'countdown', 'diary'];
   const handleNavigate = (targetScreen, userData = null) => {
     if (CASTLE_ROOTED.includes(targetScreen) && userData) {
       setCastleParams(userData);
+      if (userData.linkCode) setActiveHomeCode(userData.linkCode);   // remember active home across reloads
     } else if (userData) {
       setSessionUser({
         name: userData.name || '',
@@ -121,6 +167,7 @@ export default function App() {
         email: userData.email || '',
       });
     }
+    if (targetScreen === 'chat') markChatRead();
     setCurrentScreen(targetScreen);
   };
 
@@ -144,6 +191,15 @@ export default function App() {
 
       {currentScreen === 'castle' && (
         <Castle onNavigate={handleNavigate} params={castleParams} />
+      )}
+      {currentScreen === 'chat' && (
+        <Chat onNavigate={handleNavigate} params={castleParams} />
+      )}
+      {currentScreen === 'club' && (
+        <Club onNavigate={handleNavigate} params={{ user: sessionUser }} />
+      )}
+      {currentScreen === 'court' && (
+        <Court onNavigate={handleNavigate} params={castleParams} />
       )}
 
       {currentScreen === 'feed' && (
@@ -176,7 +232,7 @@ export default function App() {
 
       {/* Single-user footer tab bar: home · explore · profile */}
       {TABBED.includes(currentScreen) && (
-        <BottomNav current={currentScreen} onNavigate={handleNavigate} />
+        <BottomNav current={currentScreen} onNavigate={handleNavigate} unreadChat={unreadChat} />
       )}
     </View>
   );

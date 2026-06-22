@@ -2,19 +2,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   StyleSheet, Text, View, TouchableOpacity, Dimensions,
-  Animated, StatusBar, Easing, Platform, ActivityIndicator, Pressable, ScrollView,
+  Animated, StatusBar, Easing, Platform, ActivityIndicator, Pressable, ScrollView, PanResponder,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle, Rect, Ellipse, G, Defs, RadialGradient, Stop, LinearGradient as SvgLinearGradient } from 'react-native-svg';
-import Matter from 'matter-js';
 import { API_BASE } from '../utils/api.js';
 import { colors as TC, fonts as TF } from '../theme/theme.js';
 import SpaceBackground from '../theme/SpaceBackground.js';
-import { GLView } from 'expo-gl';
-import { Renderer } from 'expo-three';
-import * as THREE from 'three';
-import StackMemories3D from '../components/games3d/StackMemories3D.js';
-import BounceBlitz3D from '../components/games3d/BounceBlitz3D.js';
+import Carrom, { initialCarromState } from '../components/carrom.js';
 import GoalRush3D from '../components/games3d/GoalRush3D.js';
 
 const { width, height } = Dimensions.get('window');
@@ -135,6 +130,7 @@ function Heart3D({ size = 60, onPress, color = '#ff4d6d' }) {
 }
 
 // ─── Color helpers ────────────────────────────────────────────────────────────
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 function lighten(hex) {
   const n = parseInt(hex.slice(1), 16);
   const r = Math.min(255, ((n >> 16) & 0xff) + 80);
@@ -395,8 +391,8 @@ function TapRacer({ onComplete, solo = false, partnerName, onScore }) {
         />
       </View>
 
-      {/* GAS button */}
-      <TouchableOpacity onPress={handleGas} activeOpacity={0.8} style={{ position: 'absolute', bottom: 50, alignSelf: 'center' }}>
+      {/* GAS button — onPressIn so taps register on touch-down, not release */}
+      <TouchableOpacity onPressIn={handleGas} activeOpacity={0.8} style={{ position: 'absolute', bottom: 50, alignSelf: 'center' }}>
         <View style={{ shadowColor: '#22c55e', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.9, shadowRadius: 28, elevation: 20 }}>
           <LinearGradient colors={['#86efac','#22c55e','#15803d','#052e16']} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }}
             style={{ width: 124, height: 124, borderRadius: 62, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: 'rgba(134,239,172,0.4)' }}>
@@ -709,7 +705,8 @@ function MemoryMatch({ targetScore, onComplete, onScore }) {
     if (!startMs) startTimer();
     const newBoard = board.map((c, i) => i === idx ? { ...c, flipped: true } : c);
     const nf = [...flipped, idx];
-    setBoard(newBoard); setFlip(nf); setMoves(m => m + 1);
+    setBoard(newBoard); setFlip(nf);
+    if (nf.length === 2) setMoves(m => m + 1);   // a move = one pair attempt
     if (nf.length === 2) {
       const [a, b] = nf;
       if (newBoard[a].sym === newBoard[b].sym) {
@@ -790,6 +787,8 @@ function PatternMatch({ targetScore, onComplete, onScore }) {
   const [phase, setPhase]   = useState('watch');
   const [level, setLevel]   = useState(0);
   const anims = useRef(PAT_COLORS.map(() => new Animated.Value(0))).current;
+  const tos = useRef([]);   // pending timeouts — cleared on unmount
+  const later = (fn, ms) => tos.current.push(setTimeout(fn, ms));
 
   const flashBtn = (idx) => {
     Animated.sequence([
@@ -801,15 +800,16 @@ function PatternMatch({ targetScore, onComplete, onScore }) {
   const showSeq = (seq) => {
     setPhase('watch'); setInput([]);
     seq.forEach((c, i) => {
-      setTimeout(() => { setActive(c); flashBtn(c); setTimeout(() => setActive(-1), 450); }, i * 750 + 200);
+      later(() => { setActive(c); flashBtn(c); later(() => setActive(-1), 450); }, i * 750 + 200);
     });
-    setTimeout(() => setPhase('input'), seq.length * 750 + 500);
+    later(() => setPhase('input'), seq.length * 750 + 500);
   };
 
   useEffect(() => {
     const s = [Math.floor(Math.random() * 4)];
     setSeq(s); setLevel(1);
-    setTimeout(() => showSeq(s), 800);
+    later(() => showSeq(s), 800);
+    return () => tos.current.forEach(clearTimeout);
   }, []);
 
   const press = (c) => {
@@ -818,14 +818,14 @@ function PatternMatch({ targetScore, onComplete, onScore }) {
     const ni = [...input, c];
     if (ni[ni.length - 1] !== sequence[ni.length - 1]) {
       setPhase('fail');
-      setTimeout(() => onComplete(Math.max(0, (level - 1) * 100)), 700);
+      later(() => onComplete(Math.max(0, (level - 1) * 100)), 700);
       return;
     }
     if (ni.length === sequence.length) {
       const ns = level + 1; setLevel(ns); onScore?.(level * 100);
       const newSeq = [...sequence, Math.floor(Math.random() * 4)];
       setSeq(newSeq); setInput([]);
-      setTimeout(() => showSeq(newSeq), 700);
+      later(() => showSeq(newSeq), 700);
     } else { setInput(ni); }
   };
 
@@ -845,7 +845,7 @@ function PatternMatch({ targetScore, onComplete, onScore }) {
         {PAT_COLORS.map((col, i) => {
           const isLit = active === i;
           return (
-            <TouchableOpacity key={i} onPress={() => press(i)} disabled={phase !== 'input'} activeOpacity={0.8}>
+            <TouchableOpacity key={i} onPressIn={() => press(i)} disabled={phase !== 'input'} activeOpacity={0.8}>
               <Animated.View style={[st.patBtn, {
                 shadowColor: col.glow,
                 shadowOffset: { width: 0, height: isLit ? 16 : 4 },
@@ -884,139 +884,177 @@ function PatternMatch({ targetScore, onComplete, onScore }) {
 const BB_R = 30;                 // ball radius
 const BB_FLOOR = height - 150;   // danger line — drop below this = game over
 
+// ─── GAME: Bounce Blitz (2D) — slide the paddle, keep the heart-ball alive ────
+// Drag anywhere to move the rectangular paddle. Ball bounces off walls, ceiling
+// and the paddle (angle depends on where it hits). Miss it → game over.
 function BounceBlitz({ onComplete, onScore }) {
-  const W = width;
-  const DURATION = 40;
-  const [score, setScore]   = useState(0);
-  const [timeLeft, setTime] = useState(DURATION);
+  const BALL_R   = 18;
+  const PAD_H    = 20;
+  const TOP_Y    = 96;                   // ceiling (below HUD)
+  const BASE_GRAV = 320;                 // starting gravity px/s^2 (easy)
+  const BASE_LAUNCH = 520;               // starting bounce speed
+  const [, setTick] = useState(0);
+  const [score, setScore] = useState(0);
   const [countdown, setCnt] = useState(3);
-  const scoreRef   = useRef(0);
-  const endedRef   = useRef(false);
-  const runningRef = useRef(false);
-  const engineRef  = useRef(null);
-  const ballRef    = useRef(null);
-  const timerRef   = useRef();
-  const cdRef      = useRef();
-  const rafRef     = useRef();
-  const ballPos    = useRef(new Animated.ValueXY({ x: W / 2 - BB_R, y: 150 - BB_R })).current;
 
-  // Build the physics world once per mount
-  if (!engineRef.current) {
-    const engine = Matter.Engine.create({ enableSleeping: false });
-    engine.gravity.y = 1.1;
-    const ball  = Matter.Bodies.circle(W / 2, 150, BB_R, { restitution: 0.72, frictionAir: 0.008 });
-    const left  = Matter.Bodies.rectangle(-22, height / 2, 40, height * 2, { isStatic: true, restitution: 1 });
-    const right = Matter.Bodies.rectangle(W + 22, height / 2, 40, height * 2, { isStatic: true, restitution: 1 });
-    const top   = Matter.Bodies.rectangle(W / 2, -22, W * 2, 40, { isStatic: true, restitution: 0.6 });
-    Matter.World.add(engine.world, [ball, left, right, top]);
-    engineRef.current = engine;
-    ballRef.current   = ball;
-  }
+  const dims     = useRef({ w: width, h: height });   // measured container
+  const scoreRef = useRef(0);
+  const levelRef = useRef(1);
+  const elapsedRef = useRef(0);          // seconds since start
+  const runRef   = useRef(false);
+  const endedRef = useRef(false);
+  const rafRef   = useRef();
+  const cdRef    = useRef();
+  const padX     = useRef(width / 2);    // paddle center x
+  const padStart = useRef(width / 2);    // padX at drag start
+  const pos      = useRef({ x: width / 2, y: TOP_Y + 60 });
+  const vel      = useRef({ x: 120, y: -40 });
+  const flashRef = useRef(0);            // paddle hit flash 0..1
+  const pulseRef = useRef(0);            // level-up surge 0..1
+  const trailRef = useRef([]);           // recent ball positions
+  const starsRef = useRef(Array.from({ length: 46 }, () => ({
+    top: Math.random() * 70, left: Math.random() * 100,
+    s: 1 + Math.random() * 2.4, o: 0.25 + Math.random() * 0.6,
+  }))).current;
+
+  const padY = () => dims.current.h - 64;   // paddle top
+  // difficulty climbs with BOTH time and level (bounces)
+  const padW = () => Math.max(74, 130 - levelRef.current * 6);
+  const grav = () => BASE_GRAV + levelRef.current * 55 + elapsedRef.current * 5;   // gradual at first, then bites
+  const launch = () => BASE_LAUNCH + levelRef.current * 46;                         // bounces fly higher each level
+  const vxCap  = () => 320 + levelRef.current * 42;                                 // and faster sideways
 
   const endGame = () => {
     if (endedRef.current) return;
-    endedRef.current = true; runningRef.current = false;
-    clearInterval(timerRef.current); cancelAnimationFrame(rafRef.current);
+    endedRef.current = true; runRef.current = false;
+    cancelAnimationFrame(rafRef.current); clearInterval(cdRef.current);
     setTimeout(() => onComplete?.(scoreRef.current), 500);
   };
 
+  // paddle follows finger — pageX is stable on native even when the touch crosses
+  // child views (locationX re-bases to whichever child is under the finger);
+  // the game view spans the full screen width, so pageX maps 1:1.
+  const movePad = (e) => {
+    const x = e.nativeEvent.pageX ?? e.nativeEvent.locationX;
+    if (x == null) return;
+    const half = padW() / 2;
+    padX.current = clamp(x, half, dims.current.w - half);
+  };
+
   useEffect(() => {
-    // physics frame loop
     let last = Date.now();
     const loop = () => {
-      const now = Date.now();
-      const dt  = Math.min(now - last, 32); last = now;
-      if (runningRef.current && !endedRef.current) {
-        Matter.Engine.update(engineRef.current, dt);
-        const b = ballRef.current.position;
-        ballPos.setValue({ x: b.x - BB_R, y: b.y - BB_R });
-        if (b.y - BB_R > BB_FLOOR) endGame();
+      const now = Date.now(); const dt = Math.min((now - last) / 1000, 0.034); last = now;
+      if (runRef.current && !endedRef.current) {
+        elapsedRef.current += dt;
+        const p = pos.current, v = vel.current, W = dims.current.w, PY = padY(), PW = padW();
+        v.y += grav() * dt;
+        p.x += v.x * dt; p.y += v.y * dt;
+        // ball trail
+        const tr = trailRef.current; tr.push({ x: p.x, y: p.y }); if (tr.length > 7) tr.shift();
+        // side walls
+        if (p.x < BALL_R)     { p.x = BALL_R;     v.x = Math.abs(v.x) + (Math.random() - 0.2) * 50; }
+        if (p.x > W - BALL_R) { p.x = W - BALL_R; v.x = -Math.abs(v.x) - (Math.random() - 0.2) * 50; }
+        // ceiling
+        if (p.y < TOP_Y + BALL_R) { p.y = TOP_Y + BALL_R; v.y = Math.abs(v.y) * 0.9; v.x += (Math.random() - 0.5) * 80; }
+        // paddle hit (ball bottom reaches paddle, moving down, within paddle x)
+        if (v.y > 0 && p.y + BALL_R >= PY && p.y + BALL_R <= PY + PAD_H + 18) {
+          const half = PW / 2 + BALL_R;
+          if (p.x >= padX.current - half && p.x <= padX.current + half) {
+            p.y = PY - BALL_R;
+            const off = (p.x - padX.current) / (PW / 2);   // -1..1
+            // random bounce: base off paddle hit point + strong random kick
+            v.y = -(launch() * (0.85 + Math.random() * 0.3));
+            v.x = clamp(off * 280 + (Math.random() - 0.5) * 360, -vxCap(), vxCap());
+            flashRef.current = 1;
+            scoreRef.current += 1; setScore(scoreRef.current); onScore?.(scoreRef.current);
+            // difficulty climbs every 5 bounces (hidden) → surge
+            const nextLvl = 1 + Math.floor(scoreRef.current / 5);
+            if (nextLvl > levelRef.current) {
+              levelRef.current = nextLvl;
+              pulseRef.current = 1;
+              v.y *= 1.18;                  // kick it higher
+              v.x *= 1.12;                  // and faster
+            }
+          }
+        }
+        // missed → fell well past paddle
+        if (p.y - BALL_R > PY + PAD_H + 60) endGame();
       }
+      if (flashRef.current > 0) flashRef.current = Math.max(0, flashRef.current - 0.05);
+      if (pulseRef.current > 0) pulseRef.current = Math.max(0, pulseRef.current - 0.02);
+      setTick(t => (t + 1) & 0xffff);
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
 
-    // 3-2-1 countdown → start
     let c = 3;
-    cdRef.current = setInterval(() => {
-      c--; setCnt(c);
-      if (c <= 0) {
-        clearInterval(cdRef.current);
-        runningRef.current = true;
-        timerRef.current = setInterval(() => setTime(t => { if (t <= 1) { endGame(); return 0; } return t - 1; }), 1000);
-      }
-    }, 1000);
-
-    return () => { cancelAnimationFrame(rafRef.current); clearInterval(cdRef.current); clearInterval(timerRef.current); };
+    cdRef.current = setInterval(() => { c--; setCnt(c); if (c <= 0) { clearInterval(cdRef.current); runRef.current = true; } }, 700);
+    return () => { cancelAnimationFrame(rafRef.current); clearInterval(cdRef.current); };
   }, []);
 
-  const bat = (e) => {
-    if (!runningRef.current || endedRef.current) return;
-    const { locationX, locationY, pageX, pageY } = e.nativeEvent;
-    const tx = locationX != null ? locationX : pageX;
-    const ty = locationY != null ? locationY : pageY;
-    const b = ballRef.current.position;
-    const dx = tx - b.x, dy = ty - b.y;
-    if (Math.sqrt(dx * dx + dy * dy) < BB_R * 3) {
-      Matter.Body.setVelocity(ballRef.current, { x: Math.max(-7, Math.min(7, -dx * 0.12)), y: -13.5 });
-      scoreRef.current += 1; setScore(scoreRef.current); onScore?.(scoreRef.current);
-    }
-  };
-
-  const timeColor = timeLeft > 10 ? '#ff6b8a' : '#ef4444';
+  const b = pos.current;
+  const flash = flashRef.current;
+  const W = dims.current.w, H = dims.current.h, PY = padY(), PW = padW();
+  const trail = trailRef.current;
+  const pulse = pulseRef.current;
 
   return (
-    <View style={{ flex: 1 }}>
-      <LinearGradient colors={['#0B0410', '#1A0716', '#0B0410']} style={StyleSheet.absoluteFill} />
-      {/* ambient glow + vignette */}
-      <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Defs>
-          <RadialGradient id="bbGlow" cx="50%" cy="34%" rx="60%" ry="45%">
-            <Stop offset="0%" stopColor="#ff4d6d" stopOpacity="0.16" />
-            <Stop offset="100%" stopColor="#0B0410" stopOpacity="0" />
-          </RadialGradient>
-        </Defs>
-        <Rect x="0" y="0" width={W} height={height} fill="url(#bbGlow)" />
-      </Svg>
-      <GameHud
-        left={{ label: 'bounces', value: score, color: '#ff9ec7' }}
-        right={{ label: 'time', value: `${timeLeft}s`, color: timeColor }}
-        timeLeft={timeLeft} totalTime={DURATION} timeColor={timeColor}
-      />
+    <View
+      style={{ flex: 1, overflow: 'hidden' }}
+      onStartShouldSetResponder={() => true}
+      onMoveShouldSetResponder={() => true}
+      onResponderGrant={movePad}
+      onResponderMove={movePad}
+      onLayout={(e) => { const { width: w, height: h } = e.nativeEvent.layout; if (w && h) { dims.current = { w, h }; if (!runRef.current) { padX.current = w / 2; pos.current.x = w / 2; } } }}
+    >
+      {/* ── synthwave backdrop ── */}
+      <LinearGradient colors={['#2b0b3f', '#3a0f4d', '#190726', '#08030f']} locations={[0, 0.32, 0.7, 1]} style={StyleSheet.absoluteFill} />
+      {/* nebula glow blobs */}
+      <View pointerEvents="none" style={{ position: 'absolute', top: -90, right: -70, width: 320, height: 320, borderRadius: 160, backgroundColor: '#ff2d78', opacity: 0.16 }} />
+      <View pointerEvents="none" style={{ position: 'absolute', top: H * 0.18, left: -90, width: 280, height: 280, borderRadius: 140, backgroundColor: '#6d28d9', opacity: 0.18 }} />
+      {/* stars */}
+      {starsRef.map((st2, i) => (
+        <View key={i} pointerEvents="none" style={{ position: 'absolute', top: `${st2.top}%`, left: `${st2.left}%`, width: st2.s, height: st2.s, borderRadius: st2.s, backgroundColor: '#fff', opacity: st2.o }} />
+      ))}
+      {/* neon horizon glow above the paddle */}
+      <LinearGradient colors={['transparent', 'rgba(34,211,238,0.0)', 'rgba(255,45,120,0.22)']} style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 180 }} pointerEvents="none" />
+      <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: PY - 26, height: 2, backgroundColor: 'rgba(34,211,238,0.45)' }} />
+      {/* level-up surge — whole-screen flash, no text */}
+      {pulse > 0 && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#ff4d6d', opacity: pulse * 0.18 }]} />}
 
-      {/* Danger line — soft glowing gradient */}
-      <LinearGradient colors={['transparent', 'rgba(239,68,68,0.6)', 'transparent']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-        style={{ position: 'absolute', top: BB_FLOOR, left: 0, right: 0, height: 2 }} pointerEvents="none" />
-      <Text style={{ position: 'absolute', top: BB_FLOOR + 7, alignSelf: 'center', fontSize: 10, color: 'rgba(239,68,68,0.55)', textTransform: 'lowercase', letterSpacing: 2 }}>don't let it drop</Text>
+      {/* ceiling + side rails (plain views, no scaling) */}
+      <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: TOP_Y, height: 3, backgroundColor: 'rgba(124,58,237,0.35)' }} />
+      <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: TOP_Y, bottom: 0, width: 3, backgroundColor: 'rgba(124,58,237,0.3)' }} />
+      <View pointerEvents="none" style={{ position: 'absolute', right: 0, top: TOP_Y, bottom: 0, width: 3, backgroundColor: 'rgba(124,58,237,0.3)' }} />
 
-      {/* The physics heart — round glow (borderRadius on the shadow view kills the square halo) */}
-      <Animated.View style={{ position: 'absolute', width: BB_R * 2, height: BB_R * 2, transform: ballPos.getTranslateTransform() }} pointerEvents="none">
-        <View style={{ flex: 1, borderRadius: BB_R, shadowColor: '#ff4d6d', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.95, shadowRadius: 18, elevation: 14 }}>
-          <Svg width={BB_R * 2} height={BB_R * 2} viewBox="0 0 100 100">
-            <Defs>
-              <RadialGradient id="bbBall" cx="38%" cy="32%" rx="68%" ry="68%">
-                <Stop offset="0%" stopColor="#ffd1dc" />
-                <Stop offset="48%" stopColor="#ff4d6d" />
-                <Stop offset="100%" stopColor="#a30030" />
-              </RadialGradient>
-            </Defs>
-            <Circle cx="50" cy="50" r="48" fill="url(#bbBall)" stroke="rgba(255,255,255,0.35)" strokeWidth="2" />
-            {/* specular highlight */}
-            <Ellipse cx="37" cy="33" rx="13" ry="8" fill="#ffffff" opacity="0.5" />
-            {/* heart emblem */}
-            <Path d="M12 21s-7-4.5-9-9.5C1.5 7.5 4 4 7.5 4c2 0 3.5 1 4.5 2.5C13 5 14.5 4 16.5 4 20 4 22.5 7.5 21 11.5c-2 5-9 9.5-9 9.5z"
-              fill="#fff" opacity="0.92" transform="translate(50 52) scale(2.0) translate(-12 -12)" />
-          </Svg>
+      {/* ball trail */}
+      {trail.map((t, i) => {
+        const k = (i + 1) / (trail.length + 1);
+        const r = BALL_R * (0.35 + k * 0.5);
+        return <View key={i} pointerEvents="none" style={{ position: 'absolute', left: t.x - r, top: t.y - r, width: r * 2, height: r * 2, borderRadius: r, backgroundColor: '#ff4d6d', opacity: k * 0.28 }} />;
+      })}
+
+      {/* ball */}
+      <View pointerEvents="none" style={{ position: 'absolute', left: b.x - BALL_R, top: b.y - BALL_R, width: BALL_R * 2, height: BALL_R * 2 }}>
+        <View style={{ flex: 1, borderRadius: BALL_R, backgroundColor: pulse > 0 ? '#ffd000' : '#ff4d6d', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)',
+          shadowColor: pulse > 0 ? '#ffd000' : '#ff4d6d', shadowOpacity: 0.9, shadowRadius: 14 + pulse * 22, shadowOffset: { width: 0, height: 0 }, elevation: 10 }}>
+          <View style={{ position: 'absolute', left: BALL_R * 0.45, top: BALL_R * 0.4, width: BALL_R * 0.55, height: BALL_R * 0.4, borderRadius: BALL_R * 0.3, backgroundColor: 'rgba(255,255,255,0.6)' }} />
         </View>
-      </Animated.View>
+      </View>
 
-      {/* Tap layer (bat the heart up) */}
-      <Pressable style={StyleSheet.absoluteFill} onPressIn={bat} />
+      {/* paddle */}
+      <View pointerEvents="none" style={{ position: 'absolute', left: padX.current - PW / 2, top: PY, width: PW, height: PAD_H }}>
+        <LinearGradient colors={['#a7f3ff', '#22d3ee', '#0e7490']} style={{ flex: 1, borderRadius: PAD_H / 2, borderWidth: 1.5, borderColor: '#e0fbff',
+          shadowColor: '#22d3ee', shadowOpacity: 0.8 + flash * 0.2, shadowRadius: 12 + flash * 10, shadowOffset: { width: 0, height: 0 }, elevation: 8 }} />
+      </View>
+
+      <GameHud left={{ label: 'bounces', value: score, color: '#ff9ec7' }} right={{ label: 'time', value: `${Math.floor(elapsedRef.current)}s`, color: '#22d3ee' }} />
 
       {countdown > 0 && (
         <View style={st.countdownOverlay} pointerEvents="none">
           <Text style={st.countdownNum}>{countdown}</Text>
-          <Text style={st.countdownSub}>tap the heart to keep it up</Text>
+          <Text style={st.countdownSub}>slide to move the paddle</Text>
         </View>
       )}
     </View>
@@ -1208,7 +1246,7 @@ function CupidArrow({ onComplete, onScore }) {
         {gold ? '★ cash rush - 5x fc ★' : 'fever'}
       </Text>
 
-      <Pressable style={StyleSheet.absoluteFill} onPress={fire} />
+      <Pressable style={StyleSheet.absoluteFill} onPressIn={fire} />
       {countdown > 0 && (<View style={st.countdownOverlay} pointerEvents="none"><Text style={st.countdownNum}>{countdown}</Text><Text style={st.countdownSub}>tap to fire - don't hit your arrows</Text></View>)}
     </View>
   );
@@ -1288,14 +1326,14 @@ function StackMemories({ onComplete, onScore }) {
 
   const stack = stackRef.current;
   const count = stack.length;
-  // chunky cartoon block colors [body, dark outline, light top]
+  // building-floor facades [body, dark outline, roof edge]
   const COLORS = [
-    ['#ff5d8f', '#7a1733', '#ffd0e0'],
-    ['#7c5cff', '#2e1a6e', '#d8cdff'],
-    ['#22c08a', '#0c5a3c', '#bff3df'],
-    ['#ffb020', '#7a4a00', '#ffe7b0'],
-    ['#3aa0ff', '#0c3a78', '#cfe7ff'],
-    ['#ff7a3d', '#7a2e0c', '#ffd6c0'],
+    ['#4b6cb7', '#1f2d52', '#9ab4e8'],   // blue glass
+    ['#b5654d', '#5a2e22', '#e0a589'],   // brick
+    ['#6b7280', '#2b2f38', '#aab1bd'],   // concrete
+    ['#3f8f7a', '#173f34', '#7fcbb8'],   // teal
+    ['#8a6db0', '#3a2a5a', '#c3aee0'],   // purple
+    ['#c08a3e', '#5a3e16', '#e6c483'],   // tan
   ];
   const items = [];
   for (let i = count - 1; i >= 0; i--) {
@@ -1306,83 +1344,97 @@ function StackMemories({ onComplete, onScore }) {
   const m = movingRef.current;
   const mci = count % COLORS.length;
 
-  // cartoon block: thick dark outline, flat body, top sheen, side shade
-  const cartoonBlock = (x, y, w, h, ci, key, withFace) => {
+  // a building floor: boxy facade + lit/dark windows (deterministic per floor)
+  const buildingFloor = (x, y, w, h, ci, key, idx) => {
     const c = COLORS[ci];
-    const r = 10;
-    const eyeY = y + h * 0.42;
+    const winW = 9, winH = Math.min(13, h - 8), gap = 8;
+    const n = Math.max(1, Math.floor((w - gap) / (winW + gap)));
+    const used = n * winW + (n - 1) * gap;
+    const startX = x + (w - used) / 2;
+    const wy = y + (h - winH) / 2;
     return (
       <G key={key}>
-        {/* drop shadow */}
-        <Rect x={x + 4} y={y + 5} width={w} height={h} rx={r} fill="#1a0e2e" opacity={0.25} />
-        {/* body */}
-        <Rect x={x} y={y} width={w} height={h} rx={r} fill={c[0]} stroke={c[1]} strokeWidth={4} />
-        {/* bottom side-shade */}
-        <Rect x={x + 3} y={y + h * 0.62} width={Math.max(0, w - 6)} height={h * 0.3} rx={6} fill={c[1]} opacity={0.18} />
-        {/* top sheen */}
-        <Rect x={x + 7} y={y + 5} width={Math.max(0, w - 14)} height={h * 0.26} rx={5} fill={c[2]} opacity={0.9} />
-        {/* cute face on the active block */}
-        {withFace && w > 46 && (
-          <G>
-            <Circle cx={x + w / 2 - 13} cy={eyeY} r={6.5} fill="#fff" stroke={c[1]} strokeWidth={2} />
-            <Circle cx={x + w / 2 + 13} cy={eyeY} r={6.5} fill="#fff" stroke={c[1]} strokeWidth={2} />
-            <Circle cx={x + w / 2 - 11} cy={eyeY + 1} r={3} fill="#1a0e2e" />
-            <Circle cx={x + w / 2 + 15} cy={eyeY + 1} r={3} fill="#1a0e2e" />
-            <Path d={`M${x + w / 2 - 9} ${eyeY + 12} Q ${x + w / 2} ${eyeY + 18} ${x + w / 2 + 9} ${eyeY + 12}`} stroke={c[1]} strokeWidth={2.5} fill="none" strokeLinecap="round" />
-          </G>
-        )}
+        {/* shadow */}
+        <Rect x={x + 4} y={y + 5} width={w} height={h} rx={2} fill="#06030f" opacity={0.3} />
+        {/* facade */}
+        <Rect x={x} y={y} width={w} height={h} rx={2} fill={c[0]} stroke={c[1]} strokeWidth={3} />
+        {/* roof edge highlight */}
+        <Rect x={x + 2} y={y + 2} width={Math.max(0, w - 4)} height={3} fill={c[2]} opacity={0.8} />
+        {/* side shade */}
+        <Rect x={x + w - 6} y={y + 3} width={3} height={Math.max(0, h - 6)} fill={c[1]} opacity={0.35} />
+        {/* windows */}
+        {Array.from({ length: n }).map((_, i) => {
+          const lit = ((idx * 7 + i * 3) % 5) < 2;
+          return <Rect key={i} x={startX + i * (winW + gap)} y={wy} width={winW} height={winH} rx={1.5}
+            fill={lit ? '#ffd45a' : '#1b2740'} opacity={lit ? 0.95 : 0.7} stroke={lit ? '#fff0bf' : '#0e1626'} strokeWidth={0.8} />;
+        })}
       </G>
     );
   };
 
+  const moonX = W - 58, moonY = 96;
+
   return (
     <View style={{ flex: 1 }}>
-      {/* sunny cartoon sky */}
-      <LinearGradient colors={['#8fd4ff', '#bfe9ff', '#eafff2']} style={StyleSheet.absoluteFill} />
-      <GameHud left={{ label: 'fc', value: score, color: '#7a1733' }} right={{ label: 'tower', value: count - 1, color: '#2e1a6e' }} />
-      {mult > 1 && <Text style={{ position: 'absolute', top: 96, alignSelf: 'center', color: '#ff5d8f', fontWeight: '900', textTransform: 'lowercase', letterSpacing: 1 }} pointerEvents="none">{mult}x combo</Text>}
+      {/* dusk city sky */}
+      <LinearGradient colors={['#0c1230', '#241a4d', '#5b2a63', '#9c4a4e']} locations={[0, 0.4, 0.74, 1]} style={StyleSheet.absoluteFill} />
+      <GameHud left={{ label: 'fc', value: score, color: '#ffd45a' }} right={{ label: 'floors', value: count - 1, color: '#9ab4e8' }} />
+      {mult > 1 && <Text style={{ position: 'absolute', top: 96, alignSelf: 'center', color: '#ffd45a', fontWeight: '900', textTransform: 'lowercase', letterSpacing: 1 }} pointerEvents="none">{mult}x combo</Text>}
 
       <Svg width={W} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
-        {/* sun with rays */}
-        <G>
-          {Array.from({ length: 12 }).map((_, i) => {
-            const a = (i / 12) * Math.PI * 2;
-            const cx = W - 56, cy = 92;
-            return <Rect key={i} x={cx - 2} y={cy - 44} width={4} height={14} rx={2} fill="#ffd84d" opacity={0.85} transform={`rotate(${(a * 180) / Math.PI} ${cx} ${cy})`} />;
-          })}
-          <Circle cx={W - 56} cy={92} r={26} fill="#ffd84d" stroke="#f59e0b" strokeWidth={3} />
-        </G>
-        {/* puffy clouds */}
-        {[[W * 0.22, 130, 1], [W * 0.7, 220, 0.8], [W * 0.4, 320, 0.65]].map(([cx, cy, s], i) => (
-          <G key={`cl${i}`} opacity={0.92}>
-            <Ellipse cx={cx} cy={cy} rx={34 * s} ry={20 * s} fill="#fff" />
-            <Ellipse cx={cx - 26 * s} cy={cy + 6 * s} rx={22 * s} ry={15 * s} fill="#fff" />
-            <Ellipse cx={cx + 26 * s} cy={cy + 6 * s} rx={22 * s} ry={15 * s} fill="#fff" />
-          </G>
+        {/* moon + glow */}
+        <Circle cx={moonX} cy={moonY} r={40} fill="#ffe9b0" opacity={0.12} />
+        <Circle cx={moonX} cy={moonY} r={24} fill="#fdf3d0" />
+        <Circle cx={moonX - 8} cy={moonY - 6} r={5} fill="#e9dcae" opacity={0.6} />
+        <Circle cx={moonX + 7} cy={moonY + 8} r={3.5} fill="#e9dcae" opacity={0.5} />
+        {/* stars */}
+        {Array.from({ length: 30 }).map((_, i) => {
+          const sx = (i * 53 % W); const sy = 40 + (i * 71 % 260);
+          return <Circle key={`s${i}`} cx={sx} cy={sy} r={i % 4 === 0 ? 1.6 : 1} fill="#fff" opacity={0.5} />;
+        })}
+
+        {/* background skyline silhouette */}
+        {(() => {
+          const baseY = BUILD_Y + SK_H;
+          const specs = [[0.0, 70], [0.16, 120], [0.34, 90], [0.5, 150], [0.66, 100], [0.82, 130], [0.92, 80]];
+          return specs.map(([fx, bh], i) => {
+            const bw = W * 0.16; const bx = W * fx;
+            return (
+              <G key={`bg${i}`} opacity={0.55}>
+                <Rect x={bx} y={baseY - bh} width={bw} height={bh} fill="#160f2e" />
+                {Array.from({ length: Math.floor(bh / 22) }).map((_, r) => (
+                  <Rect key={r} x={bx + 6} y={baseY - bh + 10 + r * 22} width={5} height={6} fill="#ffd45a" opacity={(i + r) % 3 === 0 ? 0.5 : 0.1} />
+                ))}
+              </G>
+            );
+          });
+        })()}
+
+        {/* street ground */}
+        <Rect x={0} y={BUILD_Y + SK_H} width={W} height={height} fill="#16151f" />
+        <Rect x={0} y={BUILD_Y + SK_H} width={W} height={6} fill="#2a2838" />
+        {Array.from({ length: 7 }).map((_, i) => (
+          <Rect key={`ln${i}`} x={20 + i * (W / 7)} y={BUILD_Y + SK_H + 26} width={26} height={4} rx={2} fill="#5a5740" opacity={0.6} />
         ))}
 
-        {/* grassy ground */}
-        <Rect x={0} y={BUILD_Y + SK_H} width={W} height={height} fill="#7ed957" />
-        <Rect x={0} y={BUILD_Y + SK_H} width={W} height={8} fill="#5bb83a" />
+        {/* placed floors (bottom floor = idx count-1) */}
+        {items.map((it, k) => buildingFloor(it.x, it.sy, it.w, SK_H - 4, it.ci, k, it.color))}
 
-        {/* placed blocks */}
-        {items.map((it, k) => cartoonBlock(it.x, it.sy, it.w, SK_H - 4, it.ci, k, k === 0))}
-
-        {/* crane cable + moving block with face */}
+        {/* crane cable + the floor being placed */}
         {runRef.current && (() => {
           const h = SK_H - 4, y = BUILD_Y - SK_H;
           return (
             <G>
-              <Rect x={m.x + m.w / 2 - 1.5} y={0} width={3} height={y + 4} fill="#5b4636" />
-              <Circle cx={m.x + m.w / 2} cy={y} r={5} fill="#8a6d52" stroke="#3a2a1c" strokeWidth={2} />
-              {cartoonBlock(m.x, y, m.w, h, mci, 'mv', true)}
+              <Rect x={m.x + m.w / 2 - 1.5} y={0} width={3} height={y + 4} fill="#3a3550" />
+              <Rect x={m.x + m.w / 2 - 9} y={y - 10} width={18} height={7} rx={2} fill="#ffd45a" stroke="#7a5c10" strokeWidth={1.5} />
+              {buildingFloor(m.x, y, m.w, h, mci, 'mv', count)}
             </G>
           );
         })()}
       </Svg>
 
-      <Pressable style={StyleSheet.absoluteFill} onPress={drop} />
-      {countdown > 0 && (<View style={st.countdownOverlay} pointerEvents="none"><Text style={st.countdownNum}>{countdown}</Text><Text style={st.countdownSub}>tap to drop - stack them straight</Text></View>)}
+      <Pressable style={StyleSheet.absoluteFill} onPressIn={drop} />
+      {countdown > 0 && (<View style={st.countdownOverlay} pointerEvents="none"><Text style={st.countdownNum}>{countdown}</Text><Text style={st.countdownSub}>tap to drop - build the tower</Text></View>)}
     </View>
   );
 }
@@ -1390,8 +1442,21 @@ function StackMemories({ onComplete, onScore }) {
 const GAME_COMPONENTS = {
   racer: TapRacer, race: TapRacer, goal: GoalRush3D,
   balloon: BalloonPop, memory: MemoryMatch, pattern: PatternMatch,
-  bounce: BounceBlitz3D, cupid: CupidArrow, stack: StackMemories,
+  bounce: BounceBlitz, cupid: CupidArrow, stack: StackMemories,
 };
+
+// Solo (single-player) games, reused by Clubs. Each Comp takes { solo, onScore, onComplete }.
+export const SOLO_GAMES = [
+  { id: 'bounce',  name: 'bounce blitz',   emoji: '🟣', Comp: BounceBlitz },
+  { id: 'stack',   name: 'stack memories', emoji: '🏙️', Comp: StackMemories },
+  { id: 'balloon', name: 'balloon pop',    emoji: '🎈', Comp: BalloonPop },
+  { id: 'memory',  name: 'memory match',   emoji: '🧠', Comp: MemoryMatch },
+  { id: 'pattern', name: 'pattern master', emoji: '🔆', Comp: PatternMatch },
+  { id: 'cupid',   name: "cupid's arrow",  emoji: '🏹', Comp: CupidArrow },
+];
+
+// Multiplayer-friendly race used by Clubs (everyone runs the same seed; top score wins).
+export const RACE_GAME = { id: 'racer', name: 'tap racer', emoji: '🏎️', Comp: TapRacer };
 
 // ─── Between-game transition splash (with FC reward) ─────────────────────────
 function GameTransition({ game, score, fcEarned, newBalance, onDone }) {
@@ -1697,10 +1762,12 @@ function MultiplayerRace({ linkCode, role, user, partnerName, onExit, onNext }) 
   const roadSpeedRef = useRef(8);
   const scrollPosRef = useRef(0);
   const aliveRef  = useRef(true);
+  const endedRef  = useRef(false);
   const timers    = useRef({});
 
   useEffect(() => {
     aliveRef.current = true;
+    endedRef.current = false;
     // reset everything for a (re)match
     myTapsRef.current = 0; setMyTaps(0); setPTaps(0);
     youProg.setValue(0); pProg.setValue(0);
@@ -1764,6 +1831,8 @@ function MultiplayerRace({ linkCode, role, user, partnerName, onExit, onNext }) 
   };
 
   const finish = async () => {
+    if (endedRef.current) return;   // tick fires every 150ms — only finish once
+    endedRef.current = true;
     Object.values(timers.current).forEach(clearInterval);
     await gPost('/api/games/race/tap', { linkcode: linkCode, role, taps: myTapsRef.current });
     const d = await gGet(`/api/games/race/${linkCode}`);
@@ -1857,7 +1926,7 @@ function MultiplayerRace({ linkCode, role, user, partnerName, onExit, onNext }) 
           car={{ idKey: 'mppartner', c1: '#9d174d', c2: '#f472b6', c3: '#be185d', glass: '#fbb6e8' }} />
       </View>
 
-      <TouchableOpacity onPress={handleGas} activeOpacity={0.8} style={{ position: 'absolute', bottom: 50, alignSelf: 'center' }}>
+      <TouchableOpacity onPressIn={handleGas} activeOpacity={0.8} style={{ position: 'absolute', bottom: 50, alignSelf: 'center' }}>
         <View style={{ shadowColor: '#22c55e', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.9, shadowRadius: 28, elevation: 20 }}>
           <LinearGradient colors={['#86efac','#22c55e','#15803d','#052e16']} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }}
             style={{ width: 124, height: 124, borderRadius: 62, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: 'rgba(134,239,172,0.4)' }}>
@@ -2164,7 +2233,8 @@ function TugOfWar({ linkCode, role, user, partnerName, onExit, onNext }) {
     if (phase !== 'racing') return;
     myRef.current++; setMy(myRef.current);
     updateKnot(myRef.current, pPulls);
-    gPost('/api/games/duel/score', { linkcode: linkCode, role, score: myRef.current });
+    // no per-tap network call — the 300ms push interval syncs the count without
+    // flooding the server (a request per tap stalls sync on slow connections)
   };
 
   if (phase === 'connecting') {
@@ -2245,8 +2315,8 @@ function TugOfWar({ linkCode, role, user, partnerName, onExit, onNext }) {
         {phase === 'racing' ? (youLead ? "you're winning the pull!" : `${pName} is pulling ahead!`) : ' '}
       </Text>
 
-      {/* PULL button */}
-      <TouchableOpacity onPress={pull} activeOpacity={0.8} style={{ position: 'absolute', bottom: 50, alignSelf: 'center' }}>
+      {/* PULL button — onPressIn so pulls register on touch-down */}
+      <TouchableOpacity onPressIn={pull} activeOpacity={0.8} style={{ position: 'absolute', bottom: 50, alignSelf: 'center' }}>
         <View style={{ shadowColor: '#f59e0b', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.9, shadowRadius: 28, elevation: 20 }}>
           <LinearGradient colors={['#fde68a','#f59e0b','#b45309','#7c2d12']} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }}
             style={{ width: 130, height: 130, borderRadius: 65, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: 'rgba(253,230,138,0.4)' }}>
@@ -2413,86 +2483,6 @@ function LiveScoreMatch({ gameId, GameComp, linkCode, role, user, partnerName, o
 }
 
 // ─── NEW GAME: Crash & Clutch — co-op multiplier, bail before the crash ───────
-// 3D rocket-ascent scene for Crash & Clutch. Reads live multiplier + crash flag
-// from refs; rocket climbs/tilts with multiplier, stars streak down faster as it
-// rises, and it bursts into an expanding shell on crash.
-function crashGL(multRef, crashedRef, aliveRef) {
-  return (gl) => {
-    const renderer = new Renderer({ gl });
-    renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight);
-    renderer.setClearColor(0x06000f, 1);
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(62, gl.drawingBufferWidth / gl.drawingBufferHeight, 0.1, 100);
-    camera.position.set(0, 0, 6);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const pl = new THREE.PointLight(0xa855f7, 1.6); pl.position.set(3, 4, 5); scene.add(pl);
-
-    // rocket = cone body + glow core
-    const rocket = new THREE.Group();
-    const body = new THREE.Mesh(
-      new THREE.ConeGeometry(0.5, 1.4, 24),
-      new THREE.MeshStandardMaterial({ color: 0xc4b5fd, emissive: 0x7c3aed, emissiveIntensity: 0.5, metalness: 0.4, roughness: 0.3 })
-    );
-    rocket.add(body);
-    const flame = new THREE.Mesh(
-      new THREE.ConeGeometry(0.28, 0.7, 16),
-      new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
-    );
-    flame.position.y = -1.0; flame.rotation.x = Math.PI; rocket.add(flame);
-    scene.add(rocket);
-
-    // streaking stars
-    const N = 120, g2 = new THREE.BufferGeometry(), p = new Float32Array(N * 3);
-    for (let i = 0; i < N; i++) { p[i*3]=(Math.random()-0.5)*14; p[i*3+1]=(Math.random()-0.5)*16; p[i*3+2]=-1-Math.random()*8; }
-    g2.setAttribute('position', new THREE.BufferAttribute(p, 3));
-    const stars = new THREE.Points(g2, new THREE.PointsMaterial({ color: 0xddd6fe, size: 0.05 }));
-    scene.add(stars);
-
-    // explosion shell (hidden until crash)
-    const boom = new THREE.Mesh(
-      new THREE.SphereGeometry(1, 20, 20),
-      new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0 })
-    );
-    scene.add(boom);
-    let boomT = 0;
-
-    let last = Date.now();
-    const render = () => {
-      if (!aliveRef.current) return;
-      requestAnimationFrame(render);
-      const now = Date.now(); const dt = Math.min((now - last) / 1000, 0.05); last = now;
-      const m = multRef.current || 1;
-      const crashed = crashedRef.current;
-
-      // stars rain down, faster with multiplier
-      const arr = g2.attributes.position.array;
-      const spd = (3 + m * 1.2) * dt;
-      for (let i = 0; i < N; i++) { arr[i*3+1] -= spd; if (arr[i*3+1] < -8) arr[i*3+1] = 8; }
-      g2.attributes.position.needsUpdate = true;
-
-      if (!crashed) {
-        rocket.visible = true;
-        rocket.rotation.z = -0.18 + Math.sin(now/300)*0.04;
-        rocket.position.y = Math.min(2.2, (m - 1) * 0.5);
-        rocket.rotation.y += dt * 1.5;
-        flame.scale.y = 1 + Math.sin(now/60)*0.3 + m*0.05;
-        body.material.emissiveIntensity = 0.4 + Math.min(1, m/10);
-      } else {
-        rocket.visible = false;
-        boomT = Math.min(1, boomT + dt * 1.8);
-        const s = 0.5 + boomT * 4;
-        boom.scale.set(s, s, s);
-        boom.material.opacity = (1 - boomT) * 0.9;
-        boom.position.copy(rocket.position);
-      }
-      renderer.render(scene, camera);
-      gl.endFrameEXP();
-    };
-    render();
-  };
-}
-
 // Crash time from r∈[0,1): ~22% chance of an early "rug" (0.3-1.2s) so players
 // who don't bail in time actually lose their stake; otherwise 1.8-10.8s.
 function crashMs(r) {
@@ -2520,12 +2510,23 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext, solo =
   const myBailRef = useRef(0);
   const alive     = useRef(true);
   const timers    = useRef({});
-  const carY = useRef(new Animated.Value(0)).current;
-  const multRef    = useRef(1);      // current multiplier — read by the 3D loop
-  const crashedRef = useRef(false);  // crash flag — read by the 3D loop
+  const multRef    = useRef(1);      // current multiplier
+  const crashedRef = useRef(false);  // crash flag
+  const [box, setBox] = useState({ w: width, h: height });   // measured play area
+  const botsRef = useRef([]);        // fake players that bail at random multipliers
 
   // multiplier as a function of elapsed ms (accelerating, aviator-style)
   const multAt = (ms) => Math.pow(1.06, ms / 240);
+
+  const makeBots = () => {
+    const names = ['Zoe', 'Kai', 'Mia', 'Leo', 'Ava', 'Max', 'Ivy', 'Eli', 'Nia', 'Rex'];
+    const pool = [...names].sort(() => Math.random() - 0.5).slice(0, 5 + Math.floor(Math.random() * 4));
+    return pool.map(n => ({
+      name: n,
+      at: 1.08 + Math.pow(Math.random(), 1.9) * 6.5,    // most bail low, a few ride high
+      stake: [20, 50, 100, 150, 250][Math.floor(Math.random() * 5)],
+    }));
+  };
 
   useEffect(() => {
     alive.current = true;
@@ -2536,7 +2537,15 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext, solo =
   // place the bet (deduct FC), then join the synced round
   const confirmBet = async (amount) => {
     betRef.current = amount;
-    if (amount > 0) await gPost('/api/games/bet', { linkcode: linkCode, role, name: user?.name || '', amount });
+    if (amount > 0) {
+      const r = await gPost('/api/games/bet', { linkcode: linkCode, role, name: user?.name || '', amount });
+      if (!r) {
+        // stake was never deducted (offline / not enough fc) → play as no-bet so
+        // we never pay out a multiplier on money that was never staked
+        betRef.current = 0;
+        gGet(`/api/wallet/${linkCode}/${role}`).then(w => { if (alive.current && w) setBalance(w.balance || 0); });
+      }
+    }
 
     // Solo: no partner sync — start a local round immediately.
     if (solo) {
@@ -2564,6 +2573,7 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext, solo =
   };
 
   const begin = () => {
+    botsRef.current = makeBots();
     if (!solo) {
       timers.current.poll = setInterval(async () => {
         const d = await gGet(`/api/games/duel/${linkCode}`);
@@ -2581,14 +2591,12 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext, solo =
         // CRASH
         setPhase('flying'); setCrashed(true); crashedRef.current = true;
         Object.values(timers.current).forEach(clearInterval);
-        Animated.timing(carY, { toValue: 40, duration: 250, useNativeDriver: true }).start();
         finish(myBailRef.current); // lock whatever we had (0 if never bailed)
         return;
       }
       setPhase('flying');
       const m = multAt(elapsed);
       setMult(m); multRef.current = m;
-      Animated.timing(carY, { toValue: -Math.min(elapsed / crashAtRef.current, 1) * (height * 0.32), duration: 120, useNativeDriver: true }).start();
     }, 60);
   };
 
@@ -2700,30 +2708,110 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext, solo =
     );
   }
 
-  const multColor = crashed ? '#ef4444' : mult < 2 ? '#fff' : mult < 5 ? '#fbbf24' : '#22c55e';
+  const multColor = crashed ? '#ef4444' : mult < 2 ? '#e5e7eb' : mult < 5 ? '#fbbf24' : '#22c55e';
+
+  // ── aviator curve geometry (uses measured box; mult at fraction f = M^f) ──
+  const VW = box.w, VH = box.h;
+  const padL = 16, padR = 16, padTop = 150, padBot = 120;
+  const plotW = Math.max(40, VW - padL - padR);
+  const plotH = Math.max(40, VH - padTop - padBot);
+  const bottomY = padTop + plotH;
+  const M = Math.max(1.0001, mult);
+  const yFor = (mv) => bottomY - ((mv - 1) / (M - 1 || 1)) * plotH;
+  const N = 30;
+  let curve = '';
+  for (let i = 0; i <= N; i++) {
+    const f = i / N, mv = Math.pow(M, f), x = padL + f * plotW, y = yFor(mv);
+    curve += (i === 0 ? `M${x} ${y}` : ` L${x} ${y}`);
+  }
+  const tipX = padL + plotW, tipY = yFor(M);
+  const area = `${curve} L${tipX} ${bottomY} L${padL} ${bottomY} Z`;
+  const curveCol = crashed ? '#ef4444' : '#ff2d55';
+
+  // bailed players feed
+  const bailedBots = botsRef.current.filter(b => b.at <= mult).sort((a, b) => b.at - a.at);
+  const bailedCount = bailedBots.length + (pBail > 0 ? 1 : 0) + (myBail > 0 ? 1 : 0);
+  const myWin = myBail > 0 ? Math.round((betRef.current || 0) * myBail) : 0;
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#06000f' }}>
-      <GLView style={StyleSheet.absoluteFill} onContextCreate={crashGL(multRef, crashedRef, alive)} />
+    <View style={{ flex: 1, backgroundColor: '#0a0410' }}
+      onLayout={(e) => { const { width: w, height: h } = e.nativeEvent.layout; if (w && h) setBox({ w, h }); }}>
+      <LinearGradient colors={['#1a0b2e', '#120726', '#0a0410']} style={StyleSheet.absoluteFill} />
+
+      <Svg width={VW} height={VH} style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Defs>
+          <SvgLinearGradient id="avArea" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0%" stopColor={curveCol} stopOpacity={0.32} />
+            <Stop offset="100%" stopColor={curveCol} stopOpacity={0} />
+          </SvgLinearGradient>
+        </Defs>
+
+        {/* y-axis multiplier gridlines */}
+        {[1.5, 2, 3, 5, 8].filter(v => v <= M + 0.5).map((v, i) => (
+          <Rect key={`tk${i}`} x={padL} y={yFor(v)} width={plotW} height={1} fill="#ffffff" opacity={0.05} />
+        ))}
+
+        {/* trajectory dashed line from origin to rocket */}
+        <Path d={`M${padL} ${bottomY} L${tipX} ${tipY}`} stroke="#fbbf24" strokeWidth={2} strokeDasharray="6 7" opacity={0.5} />
+        {/* filled area + curve */}
+        <Path d={area} fill="url(#avArea)" />
+        <Path d={curve} stroke={curveCol} strokeWidth={4} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
+
+      {/* axis tick labels */}
+      {[1.5, 2, 3, 5, 8].filter(v => v <= M + 0.5).map((v, i) => (
+        <Text key={`lb${i}`} pointerEvents="none" style={{ position: 'absolute', right: 6, top: yFor(v) - 7, fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: '700' }}>{v.toFixed(1)}x</Text>
+      ))}
+
+      {/* rocket on the tip */}
+      <Text pointerEvents="none" style={{ position: 'absolute', left: tipX - 16, top: (crashed ? tipY - 60 : tipY) - 16, fontSize: 30, transform: [{ rotate: crashed ? '20deg' : '-20deg' }] }}>
+        {crashed ? '💥' : '🚀'}
+      </Text>
+
       <GameHud
-        left={{ label: 'you', value: myBail > 0 ? `${myBail.toFixed(1)}×` : '—', color: '#4ade80' }}
-        right={{ label: pName, value: pBail > 0 ? `${pBail.toFixed(1)}×` : '—', color: '#f472b6' }}
+        left={{ label: 'you', value: myBail > 0 ? `${myBail.toFixed(2)}×` : '—', color: '#4ade80' }}
+        right={{ label: pName, value: pBail > 0 ? `${pBail.toFixed(2)}×` : '—', color: '#f472b6' }}
       />
 
-      {/* big multiplier */}
-      <View style={{ position: 'absolute', top: height * 0.18, left: 0, right: 0, alignItems: 'center' }} pointerEvents="none">
-        <Text style={{ fontFamily: TF.serif, fontSize: 68, color: multColor, letterSpacing: -2, textShadowColor: multColor, textShadowRadius: 24 }}>
-          {crashed ? 'crash!' : `${mult.toFixed(2)}×`}
+      {/* "N players bailed" */}
+      {bailedCount > 0 && (
+        <Text pointerEvents="none" style={{ position: 'absolute', top: padTop - 46, left: 0, right: 0, textAlign: 'center', color: '#e5e7eb', fontWeight: '800', fontSize: 14 }}>
+          {bailedCount} player{bailedCount > 1 ? 's' : ''} bailed!
         </Text>
+      )}
+
+      {/* big multiplier + live win */}
+      <View style={{ position: 'absolute', top: padTop - 12, left: 0, right: 0, alignItems: 'center' }} pointerEvents="none">
+        <Text style={{ fontFamily: TF.serif, fontSize: 66, color: multColor, letterSpacing: -2, textShadowColor: multColor, textShadowRadius: 22 }}>
+          {crashed ? 'flew away!' : `${mult.toFixed(2)}×`}
+        </Text>
+        {myBail > 0 && !crashed && betRef.current > 0 && (
+          <Text style={{ color: '#22c55e', fontWeight: '900', fontSize: 18, marginTop: 2 }}>Won = {myWin} fc</Text>
+        )}
+      </View>
+
+      {/* live bail feed (left) */}
+      <View style={{ position: 'absolute', top: 92, left: 10, maxWidth: 150 }} pointerEvents="none">
+        {bailedBots.slice(0, 6).map((b, i) => (
+          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, width: 34 }}>{b.name}</Text>
+            <Text style={{ color: '#4ade80', fontSize: 11, fontWeight: '800' }}>{b.at.toFixed(2)}x</Text>
+            <Text style={{ color: 'rgba(74,222,128,0.7)', fontSize: 11 }}>+{Math.round(b.stake * b.at)}</Text>
+          </View>
+        ))}
       </View>
 
       {/* bail button */}
-      <TouchableOpacity onPress={bail} disabled={myBail > 0 || crashed} activeOpacity={0.85} style={{ position: 'absolute', bottom: 56, alignSelf: 'center' }}>
+      <TouchableOpacity onPress={bail} disabled={myBail > 0 || crashed} activeOpacity={0.85} style={{ position: 'absolute', bottom: 48, alignSelf: 'center' }}>
         <View style={{ shadowColor: '#22c55e', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.9, shadowRadius: 26 }}>
-          <LinearGradient colors={myBail > 0 ? ['#334155','#1e293b'] : ['#86efac','#22c55e','#15803d']} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }}
-            style={{ width: 150, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' }}>
-            <Text style={{ fontSize: 17, fontWeight: '900', color: '#fff', textTransform: 'lowercase' }}>
-              {myBail > 0 ? `locked ${myBail.toFixed(2)}×` : 'bail out!'}
+          <LinearGradient colors={myBail > 0 ? ['#334155', '#1e293b'] : ['#86efac', '#22c55e', '#15803d']} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }}
+            style={{ width: 190, height: 66, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' }}>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: '#fff', textTransform: 'lowercase' }}>
+              {myBail > 0 ? `locked ${myBail.toFixed(2)}×` : 'bail out'}
             </Text>
+            {myBail === 0 && !crashed && betRef.current > 0 && (
+              <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', fontWeight: '700' }}>{Math.round(betRef.current * mult)} fc</Text>
+            )}
           </LinearGradient>
         </View>
       </TouchableOpacity>
@@ -2731,7 +2819,7 @@ function CrashClutch({ linkCode, role, user, partnerName, onExit, onNext, solo =
       {phase === 'countdown' && (
         <View style={st.countdownOverlay} pointerEvents="none">
           <Text style={st.countdownNum}>{cnt}</Text>
-          <Text style={st.countdownSub}>bail before it crashes!</Text>
+          <Text style={st.countdownSub}>bail before it flies away!</Text>
         </View>
       )}
     </View>
@@ -2905,6 +2993,99 @@ function NeonTug({ linkCode, role, user, partnerName, onExit, onNext }) {
   );
 }
 
+// ─── Couple carrom — turn-based, synced over the home linkcode ────────────────
+function CarromDuel({ linkCode, role, user, partnerName, onExit }) {
+  const [sess, setSess] = useState(null);
+  const meIdx = role === 'creator' ? 0 : 1;
+  const aliveRef = useRef(true);
+  const seededRef = useRef(false);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    const tick = async () => { const d = await gGet(`/api/carromduel/${linkCode}`); if (d?.duel && aliveRef.current) setSess(d.duel); };
+    tick();
+    const id = setInterval(tick, 1100);
+    return () => { aliveRef.current = false; clearInterval(id); };
+  }, [linkCode]);
+
+  // creator seeds the opening board
+  useEffect(() => {
+    if (sess && !sess.state && role === 'creator' && !seededRef.current) {
+      seededRef.current = true;
+      const init = initialCarromState();
+      setSess(s => s ? { ...s, state: init, turn: 0, scoremap: {} } : s);
+      gPost('/api/carromduel/state', { linkcode: linkCode, state: init, turn: 0, scoremap: {}, status: 'playing' });
+    }
+  }, [sess?.state]);
+
+  const playAgain = async () => {
+    seededRef.current = false;
+    await gPost('/api/carromduel/reset', { linkcode: linkCode });
+    const d = await gGet(`/api/carromduel/${linkCode}`); if (d?.duel) setSess(d.duel);
+  };
+
+  const back = (
+    <View style={{ position: 'absolute', top: 10, left: 12, zIndex: 5 }}>
+      <TouchableOpacity onPress={onExit} style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 20 }}>←</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  if (!sess || !sess.state) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0e1a15', alignItems: 'center', justifyContent: 'center' }}>
+        {back}<ActivityIndicator color="#34d399" /><Text style={{ color: 'rgba(255,255,255,0.5)', marginTop: 12 }}>setting up the board…</Text>
+      </View>
+    );
+  }
+
+  const names = [
+    role === 'creator' ? (user?.name || 'you') : (partnerName || 'partner'),
+    role === 'joiner' ? (user?.name || 'you') : (partnerName || 'partner'),
+  ];
+  const players = [{ email: 'creator', name: names[0] }, { email: 'joiner', name: names[1] }];
+
+  if (sess.status === 'done') {
+    const ranked = [...players].map(p => ({ ...p, score: (sess.scoremap || {})[p.email] || 0 })).sort((a, b) => b.score - a.score);
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0e1a15', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        {back}
+        <Text style={{ fontSize: 22, fontWeight: '900', color: '#eafff2' }}>🏁 results</Text>
+        <View style={{ marginTop: 16, gap: 8, width: '100%', maxWidth: 320 }}>
+          {ranked.map((p, i) => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: i === 0 ? 'rgba(212,168,87,0.12)' : 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: i === 0 ? '#d4a857aa' : 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
+              <Text style={{ fontSize: 15, fontWeight: '900', color: '#eafff2', width: 22 }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i + 1}</Text>
+              <Text style={{ flex: 1, color: '#fff', fontWeight: '700' }}>{p.name}{p.email === role ? ' (you)' : ''}</Text>
+              <Text style={{ color: '#d4a857', fontWeight: '900', fontSize: 16 }}>{p.score}</Text>
+            </View>
+          ))}
+        </View>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 24 }}>
+          <TouchableOpacity onPress={playAgain} style={{ borderRadius: 12, overflow: 'hidden' }}>
+            <LinearGradient colors={['#10b981', '#34d399']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: 26, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: '#04220f', fontWeight: '900' }}>play again</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onExit} style={{ paddingHorizontal: 18, height: 48, borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: 'rgba(255,255,255,0.6)', fontWeight: '800' }}>exit</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  const net = {
+    board: sess.state, me: role, scores: sess.scoremap || {}, turnindex: sess.turn || 0, playerCount: 2, players,
+    turnName: players[sess.turn || 0]?.name, isMyTurn: (sess.turn || 0) === meIdx,
+    onShot: (state, scoremap, next, done) => {
+      setSess(s => s ? { ...s, state, scoremap, turn: next, status: done ? 'done' : 'playing' } : s);
+      gPost('/api/carromduel/state', { linkcode: linkCode, state, scoremap, turn: next, status: done ? 'done' : 'playing' });
+    },
+  };
+  return (<View style={{ flex: 1 }}>{back}<Carrom net={net} onExit={onExit} /></View>);
+}
+
 // ─── Renders the right multiplayer wrapper for a chosen game id ───────────────
 function renderMpGame(gameId, common) {
   if (gameId === 'crash') return <CrashClutch {...common} />;
@@ -2913,6 +3094,8 @@ function renderMpGame(gameId, common) {
   if (gameId === 'tug')   return <TugOfWar {...common} />;
   if (gameId === 'goal')  return <GoalDuel {...common} />;
   if (gameId === 'xo')    return <TicTacToe {...common} />;
+  if (gameId === 'carrom') return <CarromDuel {...common} />;
+  if (!GAME_COMPONENTS[gameId]) return null;   // safety: never render an undefined component
   return <LiveScoreMatch gameId={gameId} GameComp={GAME_COMPONENTS[gameId]} {...common} />;
 }
 
@@ -3015,16 +3198,17 @@ function TicTacToe({ linkCode, role, user, partnerName, onExit }) {
 const MENU_GAMES = [
   { id: 'xo',       label: 'tic tac toe',     emoji: '⭕', color: '#22d3ee', solo: false, tag: 'turn-based',   desc: 'classic x & o — you place x, partner places o.', stat: '2p' },
   { id: 'crash',    label: 'crash & clutch',  emoji: '🎰', color: '#a855f7', solo: true,  tag: 'bet & bail',   desc: 'bet fantasy cash. cash out before it crashes — solo or vs partner.', stat: 'live' },
-  { id: 'neon',     label: 'neon tug',        emoji: '🎯', color: '#22d3ee', solo: false, tag: 'mash',         desc: 'mash faster than your partner to win.',         stat: '15 sec' },
+  { id: 'neon',     label: 'neon tug',        emoji: '🎯', color: '#22d3ee', solo: false, tag: 'mash',         desc: 'mash faster than your partner — ×3 windows.',   stat: '20 sec' },
   { id: 'race',     label: 'tap race',        emoji: '🏁', color: '#22c55e', solo: true,  tag: 'race',         desc: 'tap like crazy and cross the line first.',      stat: '20 sec' },
-  { id: 'tug',      label: 'tug of war',      emoji: '💪', color: '#f59e0b', solo: false, tag: 'pull',         desc: 'out-pull your partner across the line.',        stat: 'best of 3' },
+  { id: 'tug',      label: 'tug of war',      emoji: '💪', color: '#f59e0b', solo: false, tag: 'pull',         desc: 'out-pull your partner across the line.',        stat: '15 sec' },
   { id: 'goal',     label: 'goal rush',       emoji: '⚽', color: '#3b82f6', solo: true,  tag: 'aim',          desc: 'pick your zone and beat the keeper.',           stat: '10 shots' },
-  { id: 'cupid',    label: "cupid's arrow",   emoji: '🏹', color: '#ec4899', solo: true,  tag: 'aim & nerve',  desc: 'steady your aim and hit the heart.',            stat: '5 arrows' },
+  { id: 'cupid',    label: "cupid's arrow",   emoji: '🏹', color: '#ec4899', solo: true,  tag: 'aim & nerve',  desc: 'pin arrows into the spinning heart.',           stat: 'endless' },
   { id: 'stack',    label: 'stack memories',  emoji: '🧱', color: '#10b981', solo: true,  tag: 'precision',    desc: 'stack the blocks as high as you can.',          stat: 'endless' },
-  { id: 'bounce',   label: 'bounce blitz',    emoji: '❤️', color: '#ff4d6d', solo: true,  tag: 'physics',      desc: 'keep the heart bouncing, don\'t let it drop.',  stat: '60 sec' },
+  { id: 'bounce',   label: 'bounce blitz',    emoji: '❤️', color: '#ff4d6d', solo: true,  tag: 'physics',      desc: 'keep the heart bouncing, don\'t let it drop.',  stat: 'endless' },
   { id: 'balloon',  label: 'balloon pop',     emoji: '🎈', color: '#f472b6', solo: true,  tag: 'pop',          desc: 'pop every balloon before it escapes.',          stat: '25 sec' },
   { id: 'memory',   label: 'memory match',    emoji: '🃏', color: '#a78bfa', solo: true,  tag: 'solo',         desc: 'flip cards and find every love pair.',          stat: '2 min' },
   { id: 'pattern',  label: 'pattern master',  emoji: '🎨', color: '#fbbf24', solo: true,  tag: 'solo',         desc: 'watch, remember, repeat — then beat.',          stat: '∞ levels' },
+  { id: 'carrom',   label: 'carrom',          emoji: '🔴', color: '#d4a857', solo: true,  tag: 'pass & play',  desc: 'flick the striker, pocket the coins. 2 players, one device.', stat: '2p' },
 ];
 
 function GameMenu({ linkCode, role, user, partnerName, onExit, onArena, autoAccept }) {
@@ -3150,6 +3334,15 @@ function GameMenu({ linkCode, role, user, partnerName, onExit, onArena, autoAcce
 
   // ── solo play / result ──
   if (view === 'solo' && gameId) {
+    // carrom is a 2-player pass-and-play board — its own UI, no score/result flow
+    if (gameId === 'carrom') {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#0e1a15' }}>
+          <StatusBar translucent barStyle="light-content" backgroundColor="transparent" />
+          <Carrom onExit={backToMenu} />
+        </View>
+      );
+    }
     const Comp = GAME_COMPONENTS[gameId];
     if (soloResult) {
       return (
@@ -3193,6 +3386,11 @@ function GameMenu({ linkCode, role, user, partnerName, onExit, onArena, autoAcce
 
   // Dispatch a tapped game by the selected mode.
   const playGame = (g) => {
+    if (g.id === 'carrom') {
+      if (mode === 'vs') { soloMpRef.current = false; invitePartner('carrom'); }   // online turn-based vs partner
+      else startSolo('carrom');                                                    // pass-and-play (one device)
+      return;
+    }
     if (mode === 'vs') { soloMpRef.current = false; invitePartner(g.id); return; }
     // solo
     if (g.id === 'crash') { soloMpRef.current = true; setGameId('crash'); setView('mp'); return; } // solo crash (local, no partner)
@@ -3366,6 +3564,7 @@ function MultiplayerArena({ linkCode, role, user, partnerName, onExit }) {
   else if (gameId === 'race') el = <MultiplayerRace key={k} {...common} />;
   else if (gameId === 'tug')  el = <TugOfWar        key={k} {...common} />;
   else if (gameId === 'goal') el = <GoalDuel        key={k} {...common} />;
+  else if (gameId === 'carrom') el = <CarromDuel    key={k} {...common} />;
   else el = <LiveScoreMatch key={k} gameId={gameId} GameComp={GAME_COMPONENTS[gameId]} {...common} />;
 
   return (
